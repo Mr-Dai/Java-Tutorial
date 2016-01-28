@@ -815,3 +815,405 @@ java.lang.IllegalAccessException: Class ClassTrouble can not access a member of
 ---
 
 Additional examples of potential problems using `Constructor.newInstance()` may be found in the *Constructor Troubleshooting* section of the *Members* lesson.
+
+# Members
+
+Reflection defines an interface `java.lang.reflect.Member` which is implemented by `java.lang.reflect.Field`, `java.lang.reflect.Method`, and `java.lang.reflect.Constructor`. These objects will be discussed in this lesson. For each member, the lesson will describe the associated APIs to retrieve declaration and type information, any operations unique to the member (for example, setting the value of a field or invoking a method), and commonly encountered errors. Each concept will be illustrated with code samples and related output which approximate some expected reflection uses.
+
+---
+
+**Note:** According to *The Java Language Specification, Java SE 7 Edition*, the members of a class are the inherited components of the class body including fields, methods, nested classes, interfaces, and enumerated types. Since constructors are not inherited, they are not members. This differs from the implementing classes of `java.lang.reflect.Member`.
+
+## Fields
+
+A *field* is a class, interface, or enum with an associated value. Methods in the `java.lang.reflect.Field` class can retrieve information about the field, such as its name, type, modifiers, and annotations. (The section *Examining Class Modifiers and Types* in the *Classes* lesson describes how to retrieve annotations.) There are also methods which enable dynamic access and modification of the value of the field. These tasks are covered in the following sections:
+
+- *Obtaining Field Types* describes how to get the declared and generic types of a field
+- *Retrieving and Parsing Field Modifiers* shows how to get portions of the field declaration such as `public` or `transient`
+- *Getting and Setting Field Values* illustrates how to access field values
+- *Troubleshooting* describes some common coding errors which may cause confusion
+
+When writing an application such as a class browser, it might be useful to find out which fields belong to a particular class. A class's fields are identified by invoking `Class.getFields()`. The `getFields()` method returns an array of `Field` objects containing one object per accessible public field.
+
+A public field is accessible if it is a member of either:
+
+- this class
+- a superclass of this class
+- an interface implemented by this class
+- an interface extended from an interface implemented by this class
+
+A field may be a class (instance) field, such as `java.io.Reader.lock`, a static field, such as `java.lang.Integer.MAX_VALUE`, or an enum constant, such as `java.lang.Thread.State.WAITING`.
+
+### Obtaining Field Types
+
+A field may be either of primitive or reference type. There are eight primitive types: `boolean`, `byte`, `short`, `int`, `long`, `char`, `float`, and `double`. A reference type is anything that is a direct or indirect subclass of `java.lang.Object` including interfaces, arrays, and enumerated types.
+
+The `FieldSpy` example prints the field's type and generic type given a fully-qualified binary class name and field name.
+
+```java
+import java.lang.reflect.Field;
+import java.util.List;
+
+public class FieldSpy<T> {
+    public boolean[][] b = {{ false, false }, { true, true } };
+    public String name  = "Alice";
+    public List<Integer> list;
+    public T val;
+
+    public static void main(String... args) {
+		try {
+	    	Class<?> c = Class.forName(args[0]);
+	    	Field f = c.getField(args[1]);
+	    	System.out.format("Type: %s%n", f.getType());
+	    	System.out.format("GenericType: %s%n", f.getGenericType());
+
+        	// production code should handle these exceptions more gracefully
+		} catch (ClassNotFoundException x) {
+	    	x.printStackTrace();
+		} catch (NoSuchFieldException x) {
+	    	x.printStackTrace();
+		}
+    }
+}
+```
+
+Sample output to retrieve the type of the three public fields in this class (`b`, `name`, and the parameterized type `list`), follows. User input is in italics.
+
+<pre>
+$ <em>java FieldSpy FieldSpy b</em>
+Type: class [[Z
+GenericType: class [[Z
+$ <em>java FieldSpy FieldSpy name</em>
+Type: class java.lang.String
+GenericType: class java.lang.String
+$ <em>java FieldSpy FieldSpy list</em>
+Type: interface java.util.List
+GenericType: java.util.List&lt;java.lang.Integer>
+$ <em>java FieldSpy FieldSpy val</em>
+Type: class java.lang.Object
+GenericType: T
+</pre>
+
+The type for the field `b` is two-dimensional array of boolean. The syntax for the type name is described in `Class.getName()`.
+
+The type for the field `val` is reported as `java.lang.Object` because generics are implemented via *type erasure* which removes all information regarding generic types during compilation. Thus `T` is replaced by the upper bound of the type variable, in this case, `java.lang.Object`.
+
+`Field.getGenericType()` will consult the Signature Attribute in the class file if it's present. If the attribute isn't available, it falls back on `Field.getType()` which was not changed by the introduction of generics. The other methods in reflection with name `getGenericFoo` for some value of *Foo* are implemented similarly.
+
+### Retrieving and Parsing Field Modifiers
+
+There are several modifiers that may be part of a field declaration:
+
+- Access modifiers: `public`, `protected`, and `private`
+- Field-specific modifiers governing runtime behavior: `transient` and `volatile`
+- Modifier restricting to one instance: `static`
+- Modifier prohibiting value modification: `final`
+- Annotations
+
+The method `Field.getModifiers()` can be used to return the integer representing the set of declared modifiers for the field. The bits representing the modifiers in this integer are defined in `java.lang.reflect.Modifier`.
+
+The `FieldModifierSpy` example illustrates how to search for fields with a given modifier. It also determines whether the located field is synthetic (compiler-generated) or is an enum constant by invoking `Field.isSynthetic()` and `Field.isEnumCostant()` respectively.
+
+```java
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import static java.lang.System.out;
+
+enum Spy { BLACK , WHITE }
+
+public class FieldModifierSpy {
+	volatile int share;
+	int instance;
+	class Inner {}
+
+	public static void main(String... args) {
+		try {
+			Class<?> c = Class.forName(args[0]);
+			int searchMods = 0x0;
+			for (int i = 1; i < args.length; i++) {
+				searchMods |= modifierFromString(args[i]);
+	    	}
+
+			Field[] flds = c.getDeclaredFields();
+			out.format("Fields in Class '%s' containing modifiers:  %s%n",
+				c.getName(),
+				Modifier.toString(searchMods));
+			boolean found = false;
+			for (Field f : flds) {
+				int foundMods = f.getModifiers();
+				// Require all of the requested modifiers to be present
+				if ((foundMods & searchMods) == searchMods) {
+					out.format("%-8s [ synthetic=%-5b enum_constant=%-5b ]%n",
+						f.getName(), f.isSynthetic(),
+						f.isEnumConstant());
+					found = true;
+				}
+			}
+
+			if (!found) {
+				out.format("No matching fields%n");
+			}
+
+				// production code should handle this exception more gracefully
+		} catch (ClassNotFoundException x) {
+			x.printStackTrace();
+		}
+    }
+
+    private static int modifierFromString(String s) {
+		int m = 0x0;
+		if ("public".equals(s))           m |= Modifier.PUBLIC;
+		else if ("protected".equals(s))   m |= Modifier.PROTECTED;
+		else if ("private".equals(s))     m |= Modifier.PRIVATE;
+		else if ("static".equals(s))      m |= Modifier.STATIC;
+		else if ("final".equals(s))       m |= Modifier.FINAL;
+		else if ("transient".equals(s))   m |= Modifier.TRANSIENT;
+		else if ("volatile".equals(s))    m |= Modifier.VOLATILE;
+		return m;
+    }
+}
+```
+
+Sample output follows:
+
+<pre>
+$ <em>java FieldModifierSpy FieldModifierSpy volatile</em>
+Fields in Class 'FieldModifierSpy' containing modifiers:  volatile
+share    [ synthetic=false enum_constant=false ]
+
+$ <em>java FieldModifierSpy Spy public</em>
+Fields in Class 'Spy' containing modifiers:  public
+BLACK    [ synthetic=false enum_constant=true  ]
+WHITE    [ synthetic=false enum_constant=true  ]
+
+$ <em>java FieldModifierSpy FieldModifierSpy\$Inner final</em>
+Fields in Class 'FieldModifierSpy$Inner' containing modifiers:  final
+this$0   [ synthetic=true  enum_constant=false ]
+
+$ <em>java FieldModifierSpy Spy private static final</em>
+Fields in Class 'Spy' containing modifiers:  private static final
+$VALUES  [ synthetic=true  enum_constant=false ]
+</pre>
+
+Notice that some fields are reported even though they are not declared in the original code. This is because the compiler will generate some *synthetic fields* which are needed during runtime. To test whether a field is synthetic, the example invokes `Field.isSynthetic()`. The set of synthetic fields is compiler-dependent; however commonly used fields include `this$0` for inner classes (i.e. nested classes that are not static member classes) to reference the outermost enclosing class and `$VALUES` used by enums to implement the implicitly defined static method `values()`. The names of synthetic class members are not specified and may not be the same in all compiler implementations or releases. These and other synthetic fields will be included in the array returned by `Class.getDeclaredFields()` but not identified by `Class.getField()` since synthetic members are not typically `public`.
+
+Because `Field` implements the interface `java.lang.reflect.AnnotatedElement`, it is possible to retrieve any runtime annotation with `java.lang.annotation.RetentionPolicy.RUNTIME`. For an example of obtaining annotations see the section *Examining Class Modifiers and Types*.
+
+### Getting and Setting Field Values
+
+Given an instance of a class, it is possible to use reflection to set the values of fields in that class. This is typically done only in special circumstances when setting the values in the usual way is not possible. Because such access usually violates the design intentions of the class, it should be used with the utmost discretion.
+
+The `Book` class illustrates how to set the values for long, array, and enum field types. Methods for getting and setting other primitive types are described in `Field`.
+
+```java
+import java.lang.reflect.Field;
+import java.util.Arrays;
+import static java.lang.System.out;
+
+enum Tweedle { DEE, DUM }
+
+public class Book {
+    public long chapters = 0;
+    public String[] characters = { "Alice", "White Rabbit" };
+    public Tweedle twin = Tweedle.DEE;
+
+    public static void main(String... args) {
+		Book book = new Book();
+		String fmt = "%6S:  %-12s = %s%n";
+
+		try {
+		    Class<?> c = book.getClass();
+
+		    Field chap = c.getDeclaredField("chapters");
+		    out.format(fmt, "before", "chapters", book.chapters);
+	  	    chap.setLong(book, 12);
+		    out.format(fmt, "after", "chapters", chap.getLong(book));
+
+		    Field chars = c.getDeclaredField("characters");
+		    out.format(fmt, "before", "characters",
+			       Arrays.asList(book.characters));
+		    String[] newChars = { "Queen", "King" };
+		    chars.set(book, newChars);
+		    out.format(fmt, "after", "characters",
+			       Arrays.asList(book.characters));
+
+		    Field t = c.getDeclaredField("twin");
+		    out.format(fmt, "before", "twin", book.twin);
+		    t.set(book, Tweedle.DUM);
+		    out.format(fmt, "after", "twin", t.get(book));
+
+	        // production code should handle these exceptions more gracefully
+		} catch (NoSuchFieldException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+```
+
+This is the corresponding output:
+
+<pre>
+$ <em>java Book</em>
+BEFORE:  chapters     = 0
+ AFTER:  chapters     = 12
+BEFORE:  characters   = [Alice, White Rabbit]
+ AFTER:  characters   = [Queen, King]
+BEFORE:  twin         = DEE
+ AFTER:  twin         = DUM
+</pre>
+
+---
+
+**Note:** Setting a field's value via reflection has a certain amount of performance overhead because various operations must occur such as validating access permissions. From the runtime's point of view, the effects are the same, and the operation is as atomic as if the value was changed in the class code directly.
+
+Use of reflection can cause some runtime optimizations to be lost. For example, the following code is highly likely be optimized by a Java virtual machine:
+
+<pre>
+int x = 1;
+x = 2;
+x = 3;
+</pre>
+
+Equivalent code using `Field.set*()` may not.
+
+---
+
+### Troubleshooting
+
+Here are a few common problems encountered by developers with explanations for why the occur and how to resolve them.
+
+#### IllegalArgumentException due to Inconvertible Types
+
+The `FieldTrouble` example will generate an `IllegalArgumentException`. `Field.setInt()` is invoked to set a field that is of the reference type `Integer` with a value of primitive type. In the non-reflection equivalent `Integer val = 42`, the compiler would convert (or *box*) the primitive type `42` to a reference type as `new Integer(42)` so that its type checking will accept the statement. When using reflection, type checking only occurs at runtime so there is no opportunity to box the value.
+
+```java
+import java.lang.reflect.Field;
+
+public class FieldTrouble {
+    public Integer val;
+
+    public static void main(String... args) {
+		FieldTrouble ft = new FieldTrouble();
+		try {
+		    Class<?> c = ft.getClass();
+		    Field f = c.getDeclaredField("val");
+	  	    f.setInt(ft, 42);               // IllegalArgumentException
+
+	        // production code should handle these exceptions more gracefully
+		} catch (NoSuchFieldException x) {
+		    x.printStackTrace();
+	 	} catch (IllegalAccessException x) {
+	 	    x.printStackTrace();
+		}
+    }
+}
+```
+
+<pre>
+$ <em>java FieldTrouble</em>
+Exception in thread "main" java.lang.IllegalArgumentException: Can not set
+  java.lang.Object field FieldTrouble.val to (long)42
+        at sun.reflect.UnsafeFieldAccessorImpl.throwSetIllegalArgumentException
+          (UnsafeFieldAccessorImpl.java:146)
+        at sun.reflect.UnsafeFieldAccessorImpl.throwSetIllegalArgumentException
+          (UnsafeFieldAccessorImpl.java:174)
+        at sun.reflect.UnsafeObjectFieldAccessorImpl.setLong
+          (UnsafeObjectFieldAccessorImpl.java:102)
+        at java.lang.reflect.Field.setLong(Field.java:831)
+        at FieldTrouble.main(FieldTrouble.java:11)
+</pre>
+
+To eliminate this exception, the problematic line should be replaced by the following invocation of `Field.set(Object obj, Object value)`:
+
+```java
+f.set(ft, new Integer(43));
+```
+
+---
+
+**Tip:** When using reflection to set or get a field, the compiler does not have an opportunity to perform boxing. It can only convert types that are related as described by the specification for `Class.isAssignableFrom()`. The example is expected to fail because `isAssignableFrom()` will return `false` in this test which can be used programmatically to verify whether a particular conversion is possible:
+
+```java
+Integer.class.isAssignableFrom(int.class) == false
+```
+
+Similarly, automatic conversion from primitive to reference type is also impossible in reflection.
+
+```java
+int.class.isAssignableFrom(Integer.class) == false
+```
+
+---
+
+#### NoSuchFieldException for Non-Public Fields
+
+The astute reader may notice that if the `FieldSpy` example shown earlier is used to get information on a non-public field, it will fail:
+
+<pre>
+$ <em>java FieldSpy java.lang.String count</em>
+java.lang.NoSuchFieldException: count
+        at java.lang.Class.getField(Class.java:1519)
+        at FieldSpy.main(FieldSpy.java:12)
+</pre>
+
+---
+
+**Tip:** The `Class.getField()` and `Class.getFields()` methods return the *public* member field(s) of the class, enum, or interface represented by the `Class` object. To retrieve all fields declared (but not inherited) in the `Class`, use the `Class.getDeclaredFields()` method.
+
+---
+
+#### IllegalAccessException when Modifying Final Fields
+
+An `IllegalAccessException` may be thrown if an attempt is made to get or set the value of a `private` or otherwise inaccessible field or to set the value of a `final` field (regardless of its access modifiers).
+
+The `FieldTroubleToo` example illustrates the type of stack trace which results from attempting to set a final field.
+
+```java
+import java.lang.reflect.Field;
+
+public class FieldTroubleToo {
+    public final boolean b = true;
+
+    public static void main(String... args) {
+		FieldTroubleToo ft = new FieldTroubleToo();
+		try {
+		    Class<?> c = ft.getClass();
+		    Field f = c.getDeclaredField("b");
+	// 	    f.setAccessible(true);  // solution
+		    f.setBoolean(ft, Boolean.FALSE);   // IllegalAccessException
+
+	        // production code should handle these exceptions more gracefully
+		} catch (NoSuchFieldException x) {
+		    x.printStackTrace();
+		} catch (IllegalArgumentException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+```
+
+<pre>
+$ <em>java FieldTroubleToo</em>
+java.lang.IllegalAccessException: Can not set final boolean field
+  FieldTroubleToo.b to (boolean)false
+        at sun.reflect.UnsafeFieldAccessorImpl.
+          throwFinalFieldIllegalAccessException(UnsafeFieldAccessorImpl.java:55)
+        at sun.reflect.UnsafeFieldAccessorImpl.
+          throwFinalFieldIllegalAccessException(UnsafeFieldAccessorImpl.java:63)
+        at sun.reflect.UnsafeQualifiedBooleanFieldAccessorImpl.setBoolean
+          (UnsafeQualifiedBooleanFieldAccessorImpl.java:78)
+        at java.lang.reflect.Field.setBoolean(Field.java:686)
+        at FieldTroubleToo.main(FieldTroubleToo.java:12)
+</pre>
+
+---
+
+**Tip:** An access restriction exists which prevents `final` fields from being set after initialization of the class. However, `Field` is declared to extend `AccessibleObject` which provides the ability to suppress this check.
+
+If `AccessibleObject.setAccessible()` succeeds, then subsequent operations on this field value will not fail do to this problem. This may have unexpected side-effects; for example, sometimes the original value will continue to be used by some sections of the application even though the value has been modified. `AccessibleObject.setAccessible()` will only succeed if the operation is allowed by the security context.
+
+---
