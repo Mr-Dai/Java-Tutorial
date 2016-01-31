@@ -1,3 +1,5 @@
+[TOC]
+
 # Introduction
 
 ## Uses of Reflection
@@ -260,7 +262,7 @@ import static java.lang.System.out;
 public class ClassDeclarationSpy {
     public static void main(String... args) {
 		try {
-	    	Class<&#63;> c = Class.forName(args[0]);
+	    	Class<?> c = Class.forName(args[0]);
 	    	out.format("Class:%n  %s%n%n", c.getCanonicalName());
 	    	out.format("Modifiers:%n  %s%n%n",
 		    	Modifier.toString(c.getModifiers()));
@@ -557,7 +559,7 @@ enum ClassMember { CONSTRUCTOR, FIELD, METHOD, CLASS, ALL }
 public class ClassSpy {
     public static void main(String... args) {
 		try {
-	    	Class<&#63;> c = Class.forName(args[0]);
+	    	Class<?> c = Class.forName(args[0]);
 	    	out.format("Class:%n  %s%n%n", c.getCanonicalName());
 
 	    	Package p = c.getPackage();
@@ -751,7 +753,7 @@ Many library methods have been retrofitted with generic declarations including s
 There are two possible solutions. The more preferable it to modify the declaration of `c` to include an appropriate generic type. In this case, the declaration should be:
 
 ```java
-Class<&#63;> c = warn.getClass();
+Class<?> c = warn.getClass();
 ```
 
 Alternatively, the warning could be explicitly suppressed using the predefined annotation `@SuppressWarnings` preceding the problematic statement.
@@ -781,7 +783,7 @@ class Cls {
 public class ClassTrouble {
     public static void main(String... args) {
 		try {
-	    	Class<&#63;> c = Class.forName("Cls");
+	    	Class<?> c = Class.forName("Cls");
 	    	c.newInstance();  // InstantiationException
 
         	// production code should handle these exceptions more gracefully
@@ -1217,3 +1219,976 @@ java.lang.IllegalAccessException: Can not set final boolean field
 If `AccessibleObject.setAccessible()` succeeds, then subsequent operations on this field value will not fail do to this problem. This may have unexpected side-effects; for example, sometimes the original value will continue to be used by some sections of the application even though the value has been modified. `AccessibleObject.setAccessible()` will only succeed if the operation is allowed by the security context.
 
 ---
+
+## Methods
+
+A *method* contains executable code which may be invoked. Methods are inherited and in non-reflective code behaviors such as overloading, overriding, and hiding are enforced by the compiler. In contrast, reflective code makes it possible for method selection to be restricted to a specific class without considering its superclasses. Superclass methods may be accessed but it is possible to determine their declaring class; this is impossible to discover programmatically without reflection and is the source of many subtle bugs.
+
+The `java.lang.reflect.Method` class provides APIs to access information about a method's modifiers, return type, parameters, annotations, and thrown exceptions. It also be used to invoke methods. These topics are covered by the following sections:
+
+- **Obtaining Method Type Information** shows how to enumerate methods declared in a class and obtains type information
+- **Obtaining Names of Method Parameters** shows how to retrieve names and other information of a method or constructor's parameters
+- **Retrieving and Parsing Method Modifiers** describes how to access and decode modifiers and other information associated with the method
+- **Invoking Methods** illustrates how to execute a method and obtain its return value
+- **Troubleshooting** covers common errors encountered when finding or invoking methods
+
+### Obtaining Method Type Information
+
+A method declaration includes the name, modifiers, parameters, return type, and list of throwable exceptions. The `java.lang.reflect.Method` class provides a way to obtain this information.
+
+The `MethodSpy` example illustrates how to enumerate all of the declared methods in a given class and retrieve the return, parameter, and exception types for all the methods of the given name.
+
+```java
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import static java.lang.System.out;
+
+public class MethodSpy {
+    private static final String  fmt = "%24s: %s%n";
+
+    // for the morbidly curious
+    <E extends RuntimeException> void genericThrow() throws E {}
+
+    public static void main(String... args) {
+		try {
+		    Class<?> c = Class.forName(args[0]);
+		    Method[] allMethods = c.getDeclaredMethods();
+		    for (Method m : allMethods) {
+				if (!m.getName().equals(args[1])) {
+				    continue;
+				}
+				out.format("%s%n", m.toGenericString());
+
+				out.format(fmt, "ReturnType", m.getReturnType());
+				out.format(fmt, "GenericReturnType", m.getGenericReturnType());
+
+				Class<?>[] pType  = m.getParameterTypes();
+				Type[] gpType = m.getGenericParameterTypes();
+				for (int i = 0; i < pType.length; i++) {
+				    out.format(fmt,"ParameterType", pType[i]);
+				    out.format(fmt,"GenericParameterType", gpType[i]);
+				}
+
+				Class<?>[] xType  = m.getExceptionTypes();
+				Type[] gxType = m.getGenericExceptionTypes();
+				for (int i = 0; i < xType.length; i++) {
+				    out.format(fmt,"ExceptionType", xType[i]);
+				    out.format(fmt,"GenericExceptionType", gxType[i]);
+				}
+		    }
+
+	        // production code should handle these exceptions more gracefully
+		} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+```
+
+Here is the output for `Class.getConstructor()` which is an example of a method with parameterized types and a variable number of parameters.
+
+<pre>
+$ <em>java MethodSpy java.lang.Class getConstructor</em>
+public java.lang.reflect.Constructor&lt;T> java.lang.Class.getConstructor
+  (java.lang.Class&lt;&#63;>[]) throws java.lang.NoSuchMethodException,
+  java.lang.SecurityException
+              ReturnType: class java.lang.reflect.Constructor
+       GenericReturnType: java.lang.reflect.Constructor&lt;T>
+           ParameterType: class [Ljava.lang.Class;
+    GenericParameterType: java.lang.Class<&#63;>[]
+           ExceptionType: class java.lang.NoSuchMethodException
+    GenericExceptionType: class java.lang.NoSuchMethodException
+           ExceptionType: class java.lang.SecurityException
+    GenericExceptionType: class java.lang.SecurityException
+</pre>
+
+This is the actual declaration of the method in source code:
+
+<pre>
+public Constructor&lt;T> getConstructor(Class<&#63;>... parameterTypes)
+</pre>
+
+First note that the return and parameter types are generic. `Method.getGenericReturnType()` will consult the Signature Attribute in the class file if it's present. If the attribute isn't available, it falls back on `Method.getReturnType()` which was not changed by the introduction of generics. The other methods with name `getGenericFoo()` for some value of Foo in reflection are implemented similarly.
+
+Next, notice that the last (and only) parameter, `parameterType`, is of variable arity (has a variable number of parameters) of type `java.lang.Class`. It is represented as a single-dimension array of type `java.lang.Class`. This can be distinguished from a parameter that is explicitly an array of `java.lang.Class` by invoking `Method.isVarArgs()`. The syntax for the returned values of `Method.get*Types()` is described in `Class.getName()`.
+
+The following example illustrates a method with a generic return type.
+
+<pre>
+$ <em>java MethodSpy java.lang.Class cast</em>
+public T java.lang.Class.cast(java.lang.Object)
+              ReturnType: class java.lang.Object
+       GenericReturnType: T
+           ParameterType: class java.lang.Object
+    GenericParameterType: class java.lang.Object
+</pre>
+
+The generic return type for the method `Class.cast()` is reported as `java.lang.Object` because generics are implemented via type erasure which removes all information regarding generic types during compilation. The erasure of `T` is defined by the declaration of `Class`:
+
+```java
+public final class Class<T> implements ...
+```
+
+Thus `T` is replaced by the upper bound of the type variable, in this case, `java.lang.Object`.
+
+The last example illustrates the output for a method with multiple overloads.
+
+<pre>
+$ <em>java MethodSpy java.io.PrintStream format</em>
+public java.io.PrintStream java.io.PrintStream.format
+  (java.util.Locale,java.lang.String,java.lang.Object[])
+              ReturnType: class java.io.PrintStream
+       GenericReturnType: class java.io.PrintStream
+           ParameterType: class java.util.Locale
+    GenericParameterType: class java.util.Locale
+           ParameterType: class java.lang.String
+    GenericParameterType: class java.lang.String
+           ParameterType: class [Ljava.lang.Object;
+    GenericParameterType: class [Ljava.lang.Object;
+public java.io.PrintStream java.io.PrintStream.format
+  (java.lang.String,java.lang.Object[])
+              ReturnType: class java.io.PrintStream
+       GenericReturnType: class java.io.PrintStream
+           ParameterType: class java.lang.String
+    GenericParameterType: class java.lang.String
+           ParameterType: class [Ljava.lang.Object;
+    GenericParameterType: class [Ljava.lang.Object;
+</pre>
+
+If multiple overloads of the same method name are discovered, they are all returned by `Class.getDeclaredMethods()`. Since `format()` has two overloads (with with a `Locale` and one without), both are shown by `MethodSpy`.
+
+---
+
+**Note:** `Method.getGenericExceptionTypes()` exists because it is actually possible to declare a method with a generic exception type. However this is rarely used since it is not possible to catch a generic exception type.
+
+---
+
+### Obtaining Names of Method Parameters
+
+You can obtain the names of the formal parameters of any method or constructor with the method `java.lang.reflect.Executable.getParameters`. (The classes `Method` and `Constructor` extend the class `Executable` and therefore inherit the method `Executable.getParameters`.) However, `.class` files do not store formal parameter names by default. This is because many tools that produce and consume class files may not expect the larger static and dynamic footprint of `.class` files that contain parameter names. In particular, these tools would have to handle larger `.class` files, and the Java Virtual Machine (JVM) would use more memory. In addition, some parameter names, such as `secret` or `password`, may expose information about security-sensitive methods.
+
+To store formal parameter names in a particular `.class` file, and thus enable the Reflection API to retrieve formal parameter names, compile the source file with the `-parameters` option to the `javac` compiler.
+
+The `MethodParameterSpy` example illustrates how to retrieve the names of the formal parameters of all constructors and methods of a given class. The example also prints other information about each parameter.
+
+The following command prints the formal parameter names of the constructors and methods of the class `ExampleMethods`. **Note**: Remember to compile the example `ExampleMethods` with the `-parameters` compiler option:
+
+<pre>
+	<em>java MethodParameterSpy ExampleMethods</em>
+</pre>
+
+This command prints the following:
+
+```
+Number of constructors: 1
+
+Constructor #1
+public ExampleMethods()
+
+Number of declared constructors: 1
+
+Declared constructor #1
+public ExampleMethods()
+
+Number of methods: 4
+
+Method #1
+public boolean ExampleMethods.simpleMethod(java.lang.String,int)
+             Return type: boolean
+     Generic return type: boolean
+         Parameter class: class java.lang.String
+          Parameter name: stringParam
+               Modifiers: 0
+            Is implicit?: false
+        Is name present?: true
+           Is synthetic?: false
+         Parameter class: int
+          Parameter name: intParam
+               Modifiers: 0
+            Is implicit?: false
+        Is name present?: true
+           Is synthetic?: false
+
+Method #2
+public int ExampleMethods.varArgsMethod(java.lang.String...)
+             Return type: int
+     Generic return type: int
+         Parameter class: class [Ljava.lang.String;
+          Parameter name: manyStrings
+               Modifiers: 0
+            Is implicit?: false
+        Is name present?: true
+           Is synthetic?: false
+
+Method #3
+public boolean ExampleMethods.methodWithList(java.util.List<java.lang.String>)
+             Return type: boolean
+     Generic return type: boolean
+         Parameter class: interface java.util.List
+          Parameter name: listParam
+               Modifiers: 0
+            Is implicit?: false
+        Is name present?: true
+           Is synthetic?: false
+
+Method #4
+public <T> void ExampleMethods.genericMethod(T[],java.util.Collection<T>)
+             Return type: void
+     Generic return type: void
+         Parameter class: class [Ljava.lang.Object;
+          Parameter name: a
+               Modifiers: 0
+            Is implicit?: false
+        Is name present?: true
+           Is synthetic?: false
+         Parameter class: interface java.util.Collection
+          Parameter name: c
+               Modifiers: 0
+            Is implicit?: false
+        Is name present?: true
+           Is synthetic?: false
+```
+
+The `MethodParameterSpy` example uses the following methods from the `Parameter` class:
+
+<ul>
+<li><code>getType</code>: Returns a <code>Class</code> object that identifies the declared type for the parameter.
+<li>
+	<p>
+		<code>getName</code>: Returns the name of the parameter. If the parameter's name is present, then this method returns the name provided by the <code>.class</code> file. Otherwise, this method synthesizes a name of the form <code>argN</code>, where <code>N</code> is the index of the parameter in the descriptor of the method that declares the parameter.
+	</p>
+	<p>
+		For example, suppose you compiled the class <code>ExampleMethods</code> without specifying the <code>-parameters</code> compiler option. The example <code>MethodParameterSpy</code> would print the following for the method <code>ExampleMethods.simpleMethod</code>:
+	</p>
+	<pre>
+public boolean ExampleMethods.simpleMethod(java.lang.String,int)
+     		 Return type: boolean
+     Generic return type: boolean
+         Parameter class: class java.lang.String
+          Parameter name: arg0
+               Modifiers: 0
+            Is implicit?: false
+        Is name present?: false
+           Is synthetic?: false
+         Parameter class: int
+          Parameter name: arg1
+               Modifiers: 0
+            Is implicit?: false
+        Is name present?: false
+           Is synthetic?: false
+	</pre>
+</li>
+<li>
+	<code>getModifiers</code>: Returns an integer that represents various characteristics that the formal parameter possesses. This value is the sum of the following values, if applicable to the formal parameter:
+
+	<table>
+		<tr>
+			<th>Value (in decimal)</th>
+			<th>Value (in hexadecimal)</th>
+			<th>Description</th>
+		</tr>
+		<tr>
+			<td>16</td>
+			<td>0x0010</td>
+			<td>The formal parameter is declared <code>final</code></td>
+		</tr>
+		<tr>
+			<td>4096</td>
+			<td>0x1000</td>
+			<td>The formal parameter is synthetic. Alternatively, you can invoke the method <code>isSynthetic</code>.</td>
+		</tr>
+		<tr>
+			<td>32768</td>
+			<td>0x8000</td>
+			<td>The parameter is implicitly declared in source code. Alternatively, you can invoke the method <code>isImplicit</code></td>
+		</tr>
+	</table>
+</li>
+<li>
+	<code>isImplicit</code>: Returns <code>true</code> if this parameter is implicitly declared in source code. See the section <b>Implicit and Synthetic Parameters</b> for more information.
+</li>
+<li>
+	<code>isNamePresent</code>: Returns <code>true</code> if the parameter has a name according to the <code>.class</code> file.
+</li>
+<li>
+	<code>isSynthetic</code>: Returns <code>true</code> if this parameter is neither implicitly nor explicitly declared in source code. See the section <b>Implicit and Synthetic Parameters</b> for more information.
+</li>
+
+#### Implicit and Synthetic Parameters
+
+Certain constructs are implicitly declared in the source code if they have not been written explicitly. For example, the `ExampleMethods` example does not contain a constructor. A default constructor is implicitly declared for it. The `MethodParameterSpy` example prints information about the implicitly declared constructor of `ExampleMethods`:
+
+```
+Number of declared constructors: 1
+public ExampleMethods()
+```
+
+Consider the following excerpt from `MethodParameterExamples`:
+
+```java
+public class MethodParameterExamples {
+    public class InnerClass { }
+}
+```
+
+The class `InnerClass` is a non-static nested class or inner class. A constructor for inner classes is also implicitly declared. However, this constructor will contain a parameter. When the Java compiler compiles `InnerClass`, it creates a `.class` file that represents code similar to the following:
+
+```java
+public class MethodParameterExamples {
+    public class InnerClass {
+        final MethodParameterExamples parent;
+        InnerClass(final MethodParameterExamples this$0) {
+            parent = this$0; 
+        }
+    }
+}
+```
+
+The `InnerClass` constructor contains a parameter whose type is the class that encloses `InnerClass`, which is `MethodParameterExamples`. Consequently, the example `MethodParameterExamples` prints the following:
+
+```
+public MethodParameterExamples$InnerClass(MethodParameterExamples)
+         Parameter class: class MethodParameterExamples
+          Parameter name: this$0
+               Modifiers: 32784
+            Is implicit?: true
+        Is name present?: true
+           Is synthetic?: false
+```
+
+Because the constructor of the class `InnerClass` is implicitly declared, its parameter is implicit as well.
+
+**Note**:
+
+- The Java compiler creates a formal parameter for the constructor of an inner class to enable the compiler to pass a reference (representing the immediately enclosing instance) from the creation expression to the member class's constructor.
+- The value 32784 means that the parameter of the `InnerClass` constructor is both final (16) and implicit (32768).
+- The Java programming language allows variable names with dollar signs (`$`); however, by convention, dollar signs are not used in variable names.
+
+Constructs emitted by a Java compiler are marked as *synthetic* if they do not correspond to a construct declared explicitly or implicitly in source code, unless they are class initialization methods. Synthetic constructs are artifacts generated by compilers that vary among different implementations. Consider the following excerpt from `MethodParameterExamples`:
+
+```java
+public class MethodParameterExamples {
+    enum Colors {
+        RED, WHITE;
+    }
+}
+```
+
+When the Java compiler encounters an `enum` construct, it creates several methods that are compatible with the `.class` file structure and provide the expected functionality of the `enum` construct. For example, the Java compiler would create a `.class` file for the `enum` construct `Colors` that represents code similar to the following:
+
+```java
+final class Colors extends java.lang.Enum<Colors> {
+    public final static Colors RED = new Colors("RED", 0);
+    public final static Colors BLUE = new Colors("WHITE", 1);
+ 
+    private final static values = new Colors[]{ RED, BLUE };
+ 
+    private Colors(String name, int ordinal) {
+        super(name, ordinal);
+    }
+ 
+    public static Colors[] values(){
+        return values;
+    }
+ 
+    public static Colors valueOf(String name){
+        return (Colors)java.lang.Enum.valueOf(Colors.class, name);
+    }
+}
+```
+
+The Java compiler creates three constructors and methods for this `enum` construct: `Colors(String name, int ordinal)`, `Colors[] values()`, and `Colors valueOf(String name)`. The methods `values` and `valueOf` are implicitly declared. Consequently, their formal parameter names are implicitly declared as well.
+
+The `enum` constructor `Colors(String name, int ordinal)` is a default constructor and it is implicitly declared. However, the formal parameters of this constructor (`name` and `ordinal`) are *not* implicitly declared. Because these formal parameters are neither explicitly or implicitly declared, they are synthetic. (The formal parameters for the default constructor of an `enum` construct are not implicitly declared because different compilers need not agree on the form of this constructor; another Java compiler might specify different formal parameters for it. When compilers compile expressions that use `enum` constants, they rely only on the public static fields of the `enum` construct, which are implicitly declared, and not on their constructors or how these constants are initialized.)
+
+Consequently, the example `MethodParameterExample` prints the following about the `enum` construct `Colors`:
+
+```
+enum Colors:
+
+Number of constructors: 0
+
+Number of declared constructors: 1
+
+Declared constructor #1
+private MethodParameterExamples$Colors()
+         Parameter class: class java.lang.String
+          Parameter name: $enum$name
+               Modifiers: 4096
+            Is implicit?: false
+        Is name present?: true
+           Is synthetic?: true
+         Parameter class: int
+          Parameter name: $enum$ordinal
+               Modifiers: 4096
+            Is implicit?: false
+        Is name present?: true
+           Is synthetic?: true
+
+Number of methods: 2
+
+Method #1
+public static MethodParameterExamples$Colors[]
+    MethodParameterExamples$Colors.values()
+             Return type: class [LMethodParameterExamples$Colors;
+     Generic return type: class [LMethodParameterExamples$Colors;
+
+Method #2
+public static MethodParameterExamples$Colors
+    MethodParameterExamples$Colors.valueOf(java.lang.String)
+             Return type: class MethodParameterExamples$Colors
+     Generic return type: class MethodParameterExamples$Colors
+         Parameter class: class java.lang.String
+          Parameter name: name
+               Modifiers: 32768
+            Is implicit?: true
+        Is name present?: true
+           Is synthetic?: false
+```
+
+Refer to the *Java Language Specification* for more information about implicitly declared constructs, including parameters that appear as implicit in the Reflection API.
+
+### Retrieving and Parsing Method Modifiers
+
+There a several modifiers that may be part of a method declaration:
+
+- Access modifiers: `public`, `protected`, and `private`
+- Modifier restricting to one instance: `static`
+- Modifier prohibiting value modification: `final`
+- Modifier requiring override: `abstract`
+- Modifier preventing reentrancy: `synchronized`
+- Modifier indicating implementation in another programming language: `ative`
+- Modifier forcing strict floating point behavior: `strictfp`
+- Annotations
+
+The `MethodModifierSpy` example lists the modifiers of a method with a given name. It also displays whether the method is synthetic (compiler-generated), of variable arity, or a bridge method (compiler-generated to support generic interfaces).
+
+<pre>
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import static java.lang.System.out;
+
+public class MethodModifierSpy {
+
+    private static int count;
+    private static synchronized void inc() { count++; }
+    private static synchronized int cnt() { return count; }
+
+    public static void main(String... args) {
+		try {
+		    Class<&#63;> c = Class.forName(args[0]);
+		    Method[] allMethods = c.getDeclaredMethods();
+		    for (Method m : allMethods) {
+				if (!m.getName().equals(args[1])) {
+				    continue;
+				}
+				out.format("%s%n", m.toGenericString());
+				out.format("  Modifiers:  %s%n",
+					   Modifier.toString(m.getModifiers()));
+				out.format("  [ synthetic=%-5b var_args=%-5b bridge=%-5b ]%n",
+					   m.isSynthetic(), m.isVarArgs(), m.isBridge());
+				inc();
+		    }
+		    out.format("%d matching overload%s found%n", cnt(),
+			       (cnt() == 1 ? "" : "s"));
+
+	        // production code should handle this exception more gracefully
+		} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+A few examples of the output `MethodModifierSpy` produces follow.
+
+<pre>
+$ <em>java MethodModifierSpy java.lang.Object wait</em>
+public final void java.lang.Object.wait() throws java.lang.InterruptedException
+  Modifiers:  public final
+  [ synthetic=false var_args=false bridge=false ]
+public final void java.lang.Object.wait(long,int)
+  throws java.lang.InterruptedException
+  Modifiers:  public final
+  [ synthetic=false var_args=false bridge=false ]
+public final native void java.lang.Object.wait(long)
+  throws java.lang.InterruptedException
+  Modifiers:  public final native
+  [ synthetic=false var_args=false bridge=false ]
+3 matching overloads found
+</pre>
+<pre>
+$ <em>java MethodModifierSpy java.lang.StrictMath toRadians</em>
+public static double java.lang.StrictMath.toRadians(double)
+  Modifiers:  public static strictfp
+  [ synthetic=false var_args=false bridge=false ]
+1 matching overload found
+</pre>
+<pre>
+$ <em>java MethodModifierSpy MethodModifierSpy inc</em>
+private synchronized void MethodModifierSpy.inc()
+  Modifiers: private synchronized
+  [ synthetic=false var_args=false bridge=false ]
+1 matching overload found
+</pre>
+<pre>
+$ <em>java MethodModifierSpy java.lang.Class getConstructor</em>
+public java.lang.reflect.Constructor&lt;T> java.lang.Class.getConstructor
+  (java.lang.Class&lt;T>[]) throws java.lang.NoSuchMethodException,
+  java.lang.SecurityException
+  Modifiers: public transient
+  [ synthetic=false var_args=true bridge=false ]
+1 matching overload found
+</pre>
+<pre>
+$ <em>java MethodModifierSpy java.lang.String compareTo</em>
+public int java.lang.String.compareTo(java.lang.String)
+  Modifiers: public
+  [ synthetic=false var_args=false bridge=false ]
+public int java.lang.String.compareTo(java.lang.Object)
+  Modifiers: public volatile
+  [ synthetic=true  var_args=false bridge=true  ]
+2 matching overloads found
+</pre>
+
+Note that `Method.isVarArgs()` returns `true` for `Class.getConstructor()`. This indicates that the method declaration looks like this:
+<pre>
+public Constructor&lt;T> getConstructor(Class<&#63;>... parameterTypes)
+</pre>
+not like this:
+<pre>
+public Constructor&lt;T> getConstructor(Class<&#63;>[] parameterTypes)
+</pre>
+
+Notice that the output for `String.compareTo()` contains two methods. The method declared in `String.java`:
+```java
+public int compareTo(String anotherString);
+```
+and a second *synthetic* or compiler-generated *bridge* method. This occurs because `String` implements the parameterized interface `Comparable`. During type erasure, the argument type of the inherited method `Comparable.compareTo()` is changed from `java.lang.Object` to `java.lang.String`. Since the parameter types for the `compareTo` methods in `Comparable` and `String` no longer match after erasure, overriding can not occur. In all other circumstances, this would produce a compile-time error because the interface is not implemented. The addition of the bridge method avoids this problem.
+
+`Method` implements `java.lang.reflect.AnnotatedElement`. Thus any runtime annotations with `java.lang.annotation.RetentionPolicy.RUNTIME` may be retrieved. For an example of obtaining annotations see the section **Examining Class Modifiers and Types**.
+
+### Invoking Methods
+
+Reflection provides a means for invoking methods on a class. Typically, this would only be necessary if it is not possible to cast an instance of the class to the desired type in non-reflective code. Methods are invoked with `java.lang.reflect.Method.invoke()`. The first argument is the object instance on which this particular method is to be invoked. (If the method is `static`, the first argument should be `null`.) Subsequent arguments are the method's parameters. If the underlying method throws an exception, it will be wrapped by an `java.lang.reflect.InvocationTargetException`. The method's original exception may be retrieved using the exception chaining mechanism's `InvocationTargetException.getCause()` method.
+
+#### Finding and Invoking a Method with a Specific Declaration
+
+Consider a test suite which uses reflection to invoke private test methods in a given class. The `Deet` example searches for `public` methods in a class which begin with the string `test`, have a boolean return type, and a single `Locale` parameter. It then invokes each matching method.
+
+<pre>
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.Locale;
+import static java.lang.System.out;
+import static java.lang.System.err;
+
+public class Deet&lt;T> {
+    private boolean testDeet(Locale l) {
+	// getISO3Language() may throw a MissingResourceException
+	out.format("Locale = %s, ISO Language Code = %s%n", l.getDisplayName(), l.getISO3Language());
+	return true;
+    }
+
+    private int testFoo(Locale l) { return 0; }
+    private boolean testBar() { return true; }
+
+    public static void main(String... args) {
+		if (args.length != 4) {
+		    err.format("Usage: java Deet &lt;classname> &lt;langauge> &lt;country> &lt;variant>%n");
+		    return;
+		}
+
+		try {
+		    Class<&#63;> c = Class.forName(args[0]);
+		    Object t = c.newInstance();
+
+		    Method[] allMethods = c.getDeclaredMethods();
+		    for (Method m : allMethods) {
+				String mname = m.getName();
+				if (!mname.startsWith("test")
+				    || (m.getGenericReturnType() != boolean.class)) {
+				    continue;
+				}
+		 		Type[] pType = m.getGenericParameterTypes();
+		 		if ((pType.length != 1)
+				    || Locale.class.isAssignableFrom(pType[0].getClass())) {
+		 		    continue;
+		 		}
+
+				out.format("invoking %s()%n", mname);
+				try {
+				    m.setAccessible(true);
+				    Object o = m.invoke(t, new Locale(args[1], args[2], args[3]));
+				    out.format("%s() returned %b%n", mname, (Boolean) o);
+
+				// Handle any exceptions thrown by method to be invoked.
+				} catch (InvocationTargetException x) {
+				    Throwable cause = x.getCause();
+				    err.format("invocation of %s failed: %s%n",
+					       mname, cause.getMessage());
+				}
+		    }
+
+	        // production code should handle these exceptions more gracefully
+		} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		} catch (InstantiationException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+`Deet` invokes `getDeclaredMethods()` which will return all methods explicitly declared in the class. Also, `Class.isAssignableFrom()` is used to determine whether the parameters of the located method are compatible with the desired invocation. Technically the code could have tested whether the following statement is `true` since `Locale` is final:
+
+```java
+Locale.class == pType[0].getClass()
+```
+
+However, `Class.isAssignableFrom()` is more general.
+
+<pre>
+$ <em>java Deet Deet ja JP JP</em>
+invoking testDeet()
+Locale = Japanese (Japan,JP), 
+ISO Language Code = jpn
+testDeet() returned true
+</pre>
+<pre>
+$ <em>java Deet Deet xx XX XX</em>
+invoking testDeet()
+invocation of testDeet failed: 
+Couldn't find 3-letter language code for xx
+</pre>
+
+First, note that only `testDeet()` meets the declaration restrictions enforced by the code. Next, when `testDeet()` is passed an invalid argument it throws an unchecked `java.util.MissingResourceException`. In reflection, there is no distinction in the handling of checked versus unchecked exceptions. They are all wrapped in an `InvocationTargetException`.
+
+#### Invoking Methods with a Variable Number of Arguments
+
+`Method.invoke()` may be used to pass a variable number of arguments to a method. The key concept to understand is that methods of variable arity are implemented as if the variable arguments are packed in an array.
+
+The `InvokeMain` example illustrates how to invoke the `main()` entry point in any class and pass a set of arguments determined at runtime.
+
+<pre>
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+
+public class InvokeMain {
+    public static void main(String... args) {
+		try {
+		    Class<&#63;> c = Class.forName(args[0]);
+		    Class[] argTypes = new Class[] { String[].class };
+		    Method main = c.getDeclaredMethod("main", argTypes);
+	  	    String[] mainArgs = Arrays.copyOfRange(args, 1, args.length);
+		    System.out.format("invoking %s.main()%n", c.getName());
+		    main.invoke(null, (Object)mainArgs);
+
+	        // production code should handle these exceptions more gracefully
+		} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		} catch (NoSuchMethodException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		} catch (InvocationTargetException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+First, to find the `main()` method the code searches for a class with the name "main" with a single parameter that is an array of `String`. Since `main()` is `static`, `null` is the first argument to `Method.invoke()`. The second argument is the array of arguments to be passed.
+
+<pre>
+$ <em>java InvokeMain Deet Deet ja JP JP</em>
+invoking Deet.main()
+invoking testDeet()
+Locale = Japanese (Japan,JP), 
+ISO Language Code = jpn
+testDeet() returned true
+</pre>
+
+### Troubleshooting
+
+This section contains examples of problems developers might encounter when using reflection to locate, invoke, or get information about methods.
+
+#### NoSuchMethodException Due to Type Erasure
+
+The `MethodTrouble` example illustrates what happens when type erasure is not taken into consideration by code which searches for a particular method in a class.
+
+<pre>
+import java.lang.reflect.Method;
+
+public class MethodTrouble<T>  {
+    public void lookup(T t) {}
+    public void find(Integer i) {}
+
+    public static void main(String... args) {
+		try {
+		    String mName = args[0];
+		    Class cArg = Class.forName(args[1]);
+		    Class<&#63;> c = (new MethodTrouble&lt;Integer>()).getClass();
+		    Method m = c.getMethod(mName, cArg);
+		    System.out.format("Found:%n  %s%n", m.toGenericString());
+
+	        // production code should handle these exceptions more gracefully
+		} catch (NoSuchMethodException x) {
+		    x.printStackTrace();
+		} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+<pre>
+$ <em>java MethodTrouble lookup java.lang.Integer</em>
+java.lang.NoSuchMethodException: MethodTrouble.lookup(java.lang.Integer)
+        at java.lang.Class.getMethod(Class.java:1605)
+        at MethodTrouble.main(MethodTrouble.java:12)
+</pre>
+<pre>
+$ <em>java MethodTrouble lookup java.lang.Object</em>
+Found:
+  public void MethodTrouble.lookup(T)
+</pre>
+
+When a method is declared with a generic parameter type, the compiler will replace the generic type with its upper bound, in this case, the upper bound of `T` is `Object`. Thus, when the code searches for `lookup(Integer)`, no method is found, despite the fact that the instance of `MethodTrouble` was created as follows:
+
+<pre>
+Class<&#63;> c = (new MethodTrouble&lt;Integer>()).getClass();
+</pre>
+
+Searching for `lookup(Object)` succeeds as expected.
+
+<pre>
+$ <em>java MethodTrouble find java.lang.Integer</em>
+Found:
+  public void MethodTrouble.find(java.lang.Integer)
+$ <em>java MethodTrouble find java.lang.Object</em>
+java.lang.NoSuchMethodException: MethodTrouble.find(java.lang.Object)
+        at java.lang.Class.getMethod(Class.java:1605)
+        at MethodTrouble.main(MethodTrouble.java:12)
+</pre>
+
+In this case, `find()` has no generic parameters, so the parameter types searched for by `getMethod()` must match exactly.
+
+---
+
+**Tip**: Always pass the upper bound of the parameterized type when searching for a method.
+
+---
+
+#### IllegalAccessException when Invoking a Method
+
+An `IllegalAccessException` is thrown if an attempt is made to invoke a private or otherwise inaccessible method.
+
+The `MethodTroubleAgain` example shows a typical stack trace which results from trying to invoke a private method in an another class.
+
+<pre>
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
+class AnotherClass {
+    private void m() {}
+}
+
+public class MethodTroubleAgain {
+    public static void main(String... args) {
+		AnotherClass ac = new AnotherClass();
+		try {
+		    Class<&#63;> c = ac.getClass();
+	 	    Method m = c.getDeclaredMethod("m");
+	//  	    m.setAccessible(true);      // solution
+	 	    Object o = m.invoke(ac);    // IllegalAccessException
+
+	        // production code should handle these exceptions more gracefully
+		} catch (NoSuchMethodException x) {
+		    x.printStackTrace();
+		} catch (InvocationTargetException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+The stack trace for the exception thrown follows.
+
+<pre>
+$ <em>java MethodTroubleAgain</em>
+java.lang.IllegalAccessException: Class MethodTroubleAgain can not access a
+  member of class AnotherClass with modifiers "private"
+        at sun.reflect.Reflection.ensureMemberAccess(Reflection.java:65)
+        at java.lang.reflect.Method.invoke(Method.java:588)
+        at MethodTroubleAgain.main(MethodTroubleAgain.java:15)
+</pre>
+
+---
+
+**Tip**: An access restriction exists which prevents reflective invocation of methods which normally would not be accessible via direct invocation. (This includes---but is not limited to---`private` methods in a separate class and public methods in a separate private class.) However, `Method` is declared to extend `AccessibleObject` which provides the ability to suppress this check via `AccessibleObject.setAccessible()`. If it succeeds, then subsequent invocations of this method object will not fail due to this problem.
+
+---
+
+#### IllegalArgumentException from Method.invoke()
+
+`Method.invoke()` has been retrofitted to be a variable-arity method. This is an enormous convenience, however it can lead to unexpected behavior. The `MethodTroubleToo` example shows various ways in which `Method.invoke()` can produce confusing results.
+
+```java
+import java.lang.reflect.Method;
+
+public class MethodTroubleToo {
+    public void ping() { System.out.format("PONG!%n"); }
+
+    public static void main(String... args) {
+		try {
+		    MethodTroubleToo mtt = new MethodTroubleToo();
+		    Method m = MethodTroubleToo.class.getMethod("ping");
+
+	 	    switch(Integer.parseInt(args[0])) {
+		    case 0:
+		  		m.invoke(mtt);                 // works
+				break;
+		    case 1:
+		 		m.invoke(mtt, null);           // works (expect compiler warning)
+				break;
+		    case 2:
+				Object arg2 = null;
+				m.invoke(mtt, arg2);           // IllegalArgumentException
+				break;
+		    case 3:
+				m.invoke(mtt, new Object[0]);  // works
+				break;
+		    case 4:
+				Object arg4 = new Object[0];
+				m.invoke(mtt, arg4);           // IllegalArgumentException
+				break;
+			default:
+				System.out.format("Test not found%n");
+		    }
+
+	        // production code should handle these exceptions more gracefully
+		} catch (Exception x) {
+		    x.printStackTrace();
+		}
+    }
+}
+```
+
+<pre>
+$ <em>java MethodTroubleToo 0</em>
+PONG!
+</pre>
+
+Since all of the parameters of `Method.invoke()` are optional except for the first, they can be omitted when the method to be invoked has no parameters.
+
+<pre>
+$ <em>java MethodTroubleToo 1</em>
+PONG!
+</pre>
+
+The code in this case generates this compiler warning because `null` is ambiguous.
+
+<pre>
+$ <em>javac MethodTroubleToo.java</em>
+MethodTroubleToo.java:16: warning: non-varargs call of varargs method with
+  inexact argument type for last parameter;
+ 		m.invoke(mtt, null);           // works (expect compiler warning)
+ 		              ^
+  cast to Object for a varargs call
+  cast to Object[] for a non-varargs call and to suppress this warning
+1 warning
+</pre>
+
+It is not possible to determine whether `null` represents an empty array of arguments or a first argument of `null`.
+
+<pre>
+$ <em>java MethodTroubleToo 2</em>
+java.lang.IllegalArgumentException: wrong number of arguments
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke
+          (NativeMethodAccessorImpl.java:39)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke
+          (DelegatingMethodAccessorImpl.java:25)
+        at java.lang.reflect.Method.invoke(Method.java:597)
+        at MethodTroubleToo.main(MethodTroubleToo.java:21)
+</pre>
+
+This fails despite the fact that the argument is `null`, because the type is a `Object` and `ping()` expects no arguments at all.
+
+<pre>
+$ <em>java MethodTroubleToo 3</em>
+PONG!
+</pre>
+
+This works because `new Object[0]` creates an empty array, and to a varargs method, this is equivalent to not passing any of the optional arguments.
+
+<pre>
+$ <em>java MethodTroubleToo 4</em>
+java.lang.IllegalArgumentException: wrong number of arguments
+        at sun.reflect.NativeMethodAccessorImpl.invoke0
+          (Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke
+          (NativeMethodAccessorImpl.java:39)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke
+          (DelegatingMethodAccessorImpl.java:25)
+        at java.lang.reflect.Method.invoke(Method.java:597)
+        at MethodTroubleToo.main(MethodTroubleToo.java:28)
+</pre>
+
+Unlike the previous example, if the empty array is stored in an `Object`, then it is treated as an `Object`. This fails for the same reason that case 2 fails, `ping()` does not expect an argument.
+
+---
+
+**Tip:** When a method `foo(Object... o)` is declared the compiler will put all of the arguments passed to `foo()` in an array of type `Object`. The implementation of `foo()` is the same as if it were declared `foo(Object[] o)`. Understanding this may help avoid the types of problems illustrated above.
+
+---
+
+#### InvocationTargetException when Invoked Method Fails
+
+An `InvocationTargetException` wraps all exceptions (checked and unchecked) produced when a method object is invoked. The `MethodTroubleReturns` example shows how to retrieve the original exception thrown by the invoked method.
+
+<pre>
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
+public class MethodTroubleReturns {
+    private void drinkMe(int liters) {
+		if (liters < 0)
+		    throw new IllegalArgumentException("I can't drink a negative amount of liquid");
+    }
+
+    public static void main(String... args) {
+		try {
+		    MethodTroubleReturns mtr  = new MethodTroubleReturns();
+	 	    Class<&#63;> c = mtr.getClass();
+	   	    Method m = c.getDeclaredMethod("drinkMe", int.class);
+		    m.invoke(mtr, -1);
+
+	        // production code should handle these exceptions more gracefully
+		} catch (InvocationTargetException x) {
+		    Throwable cause = x.getCause();
+		    System.err.format("drinkMe() failed: %s%n", cause.getMessage());
+		} catch (Exception x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+<pre>
+$ <em>java MethodTroubleReturns</em>
+drinkMe() failed: I can't drink a negative amount of liquid
+</pre>
+
+---
+
+**Tip:** If an `InvocationTargetException` is thrown, the method was invoked. Diagnosis of the problem would be the same as if the method was called directly and threw the exception that is retrieved by `getCause()`. This exception does not indicate a problem with the reflection package or its usage.
+
+---
+
