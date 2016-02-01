@@ -48,7 +48,7 @@ The examples in this trail are designed for experimenting with the Reflection AP
 
 ---
 
-## Classes
+# Classes
 
 Every object is either a reference or primitive type. Reference types all inherit from [`java.lang.Object`](https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html). Classes, enums, arrays, and interfaces are all reference types. There is a fixed set of primitive types: `boolean`, `byte`, `short`, `int`, `long`, `char`, `float`, and `double`. Examples of reference types include [`java.lang.String`](https://docs.oracle.com/javase/8/docs/api/java/lang/String.html), all of the wrapper classes for primitive types such as [`java.lang.Double`](https://docs.oracle.com/javase/8/docs/api/java/lang/Double.html), the interface [`java.io.Serializable`](https://docs.oracle.com/javase/8/docs/api/java/io/Serializable.html), and the enum [`javax.swing.SortOrder`](https://docs.oracle.com/javase/8/docs/api/javax/swing/SortOrder.html).
 
@@ -59,11 +59,11 @@ For every type of object, the Java virtual machine instantiates an immutable ins
 *   **Discovering Class Members** illustrates how to list the constructors, fields, methods, and nested classes in a class
 *   **Troubleshooting** describes common errors encountered when using [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html)
 
-### Retrieving Class Objects
+## Retrieving Class Objects
 
 The entry point for all reflection operations is [`java.lang.Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html). With the exception of [`java.lang.reflect.ReflectPermission`](https://docs.oracle.com/javase/8/docs/api/java/lang/reflect/ReflectPermission.html), none of the classes in [`java.lang.reflect`](https://docs.oracle.com/javase/8/docs/api/java/lang/reflect/package-summary.html) have public constructors. To get to these classes, it is necessary to invoke appropriate methods on [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html). There are several ways to get a [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html) depending on whether the code has access to an object, the name of class, a type, or an existing [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html).
 
-#### Object.getClass()
+### Object.getClass()
 
 If an instance of an object is available, then the simplest way to get its [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html) is to invoke [`Object.getClass()`](https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#getClass--). Of course, this only works for reference types which all inherit from [`Object`](https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html). Some examples follow.
 
@@ -103,7 +103,7 @@ Class c = s.getClass();
 
 In this case, [`java.util.Set`](https://docs.oracle.com/javase/8/docs/api/java/util/Set.html) is an interface to an object of type [`java.util.HashSet`](https://docs.oracle.com/javase/8/docs/api/java/util/HashSet.html). The value returned by [`getClass()`](https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#getClass--) is the class corresponding to [`java.util.HashSet`](https://docs.oracle.com/javase/8/docs/api/java/util/HashSet.html).
 
-## The .class Syntax
+### The .class Syntax
 
 If the type is available but there is no instance then it is possible to obtain a [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html) by appending `.class` to the name of the type. This is also the easiest way to obtain the [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html) for a primitive type.
 
@@ -128,7 +128,7 @@ Class c = int[][][].class;
 
 The `.class` syntax may be used to retrieve a [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html) corresponding to a multi-dimensional array of a given type.
 
-#### Class.forName()
+### Class.forName()
 
 If the fully-qualified name of a class is available, it is possible to get the corresponding [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html) using the static method [`Class.forName()`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html#forName-java.lang.String-). This cannot be used for primitive types. The syntax for names of array classes is described by [`Class.getName()`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html#getName--). This syntax is applicable to references and primitive types.
 
@@ -146,7 +146,7 @@ Class cStringArray = Class.forName("[[Ljava.lang.String;");
 
 The variable `cDoubleArray` will contain the [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html) corresponding to an array of primitive type `double` (i.e. the same as `double[].class`). The `cStringArray` variable will contain the [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html) corresponding to a two-dimensional array of [`String`](https://docs.oracle.com/javase/8/docs/api/java/lang/String.html) (i.e. identical to `String[][].class`).
 
-## TYPE Field for Primitive Type Wrappers
+### TYPE Field for Primitive Type Wrappers
 
 The `.class` syntax is a more convenient and the preferred way to obtain the [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html) for a primitive type; however there is another way to acquire the [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html). Each of the primitive types and `void` has a wrapper class in [`java.lang`](https://docs.oracle.com/javase/8/docs/api/java/lang/package-summary.html) that is used for boxing of primitive types to reference types. Each wrapper class contains a field named `TYPE` which is equal to the [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html) for the primitive type being wrapped.
 
@@ -164,7 +164,7 @@ Class c = Void.TYPE;
 
 [`Void.TYPE`](https://docs.oracle.com/javase/8/docs/api/java/lang/Void.html#TYPE) is identical to `void.class`.
 
-## Methods that Return Classes
+### Methods that Return Classes
 
 There are several Reflection APIs which return classes but these may only be accessed if a [`Class`](https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html) has already been obtained either directly or indirectly.
 
@@ -2192,3 +2192,625 @@ drinkMe() failed: I can't drink a negative amount of liquid
 
 ---
 
+## Constructors
+
+A *constructor* is used in the creation of an object that is an instance of a class. Typically it performs operations required to initialize the class before methods are invoked or fields are accessed. Constructors are never inherited.
+
+Similar to methods, reflection provides APIs to discover and retrieve the constructors of a class and obtain declaration information such as the modifiers, parameters, annotations, and thrown exceptions. New instances of classes may also be created using a specified constructor. The key classes used when working with constructors are `Class` and `java.lang.reflect.Constructor`. Common operations involving constructors are covered in the following sections:
+
+- **Finding Constructors** illustrates how to retrieve constructors with specific parameters
+- **Retrieving and Parsing Constructor Modifiers** shows how to obtain the modifiers of a constructor declaration and other information about the constructor
+- **Creating New Class Instances** shows how to instantiate an instance of an object by invoking its constructor
+- **Troubleshooting** describes common errors which may be encountered while finding or invoking constructors
+
+### Finding Constructors
+
+A constructor declaration includes the name, modifiers, parameters, and list of throwable exceptions. The `java.lang.reflect.Constructor` class provides a way to obtain this information.
+
+The `ConstructorSift` example illustrates how to search a class's declared constructors for one which has a parameter of a given type.
+
+<pre>
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Type;
+import static java.lang.System.out;
+
+public class ConstructorSift {
+    public static void main(String... args) {
+		try {
+		    Class<&#63;> cArg = Class.forName(args[1]);
+
+		    Class<&#63;> c = Class.forName(args[0]);
+		    Constructor[] allConstructors = c.getDeclaredConstructors();
+		    for (Constructor ctor : allConstructors) {
+				Class<&#63;>[] pType  = ctor.getParameterTypes();
+				for (int i = 0; i < pType.length; i++) {
+				    if (pType[i].equals(cArg)) {
+						out.format("%s%n", ctor.toGenericString());
+
+						Type[] gpType = ctor.getGenericParameterTypes();
+						for (int j = 0; j < gpType.length; j++) {
+						    char ch = (pType[j].equals(cArg) ? '*' : ' ');
+						    out.format("%7c%s[%d]: %s%n", ch,
+							       "GenericParameterType", j, gpType[j]);
+						}
+						break;
+				    }
+				}
+		    }
+
+	        // production code should handle this exception more gracefully
+		} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+`Method.getGenericParameterTypes()` will consult the Signature Attribute in the class file if it's present. If the attribute isn't available, it falls back on `Method.getParameterType()` which was not changed by the introduction of generics. The other methods with name `getGenericFoo()` for some value of `Foo` in reflection are implemented similarly. The syntax for the returned values of `Method.get*Types()` is described in `Class.getName()`.
+
+Here is the output for all constructors in `java.util.Formatter` which have a `Locale` argument.
+
+<pre>
+$ <em>java ConstructorSift java.util.Formatter java.util.Locale</em>
+public
+java.util.Formatter(java.io.OutputStream,java.lang.String,java.util.Locale)
+throws java.io.UnsupportedEncodingException
+       GenericParameterType[0]: class java.io.OutputStream
+       GenericParameterType[1]: class java.lang.String
+      *GenericParameterType[2]: class java.util.Locale
+public java.util.Formatter(java.lang.String,java.lang.String,java.util.Locale)
+throws java.io.FileNotFoundException,java.io.UnsupportedEncodingException
+       GenericParameterType[0]: class java.lang.String
+       GenericParameterType[1]: class java.lang.String
+      *GenericParameterType[2]: class java.util.Locale
+public java.util.Formatter(java.lang.Appendable,java.util.Locale)
+       GenericParameterType[0]: interface java.lang.Appendable
+      *GenericParameterType[1]: class java.util.Locale
+public java.util.Formatter(java.util.Locale)
+      *GenericParameterType[0]: class java.util.Locale
+public java.util.Formatter(java.io.File,java.lang.String,java.util.Locale)
+throws java.io.FileNotFoundException,java.io.UnsupportedEncodingException
+       GenericParameterType[0]: class java.io.File
+       GenericParameterType[1]: class java.lang.String
+      *GenericParameterType[2]: class java.util.Locale
+</pre>
+
+The next example output illustrates how to search for a parameter of type `char[]` in `String`.
+
+<pre>
+$ <em>java ConstructorSift java.lang.String "[C"</em>
+java.lang.String(int,int,char[])
+       GenericParameterType[0]: int
+       GenericParameterType[1]: int
+      *GenericParameterType[2]: class [C
+public java.lang.String(char[],int,int)
+      *GenericParameterType[0]: class [C
+       GenericParameterType[1]: int
+       GenericParameterType[2]: int
+public java.lang.String(char[])
+      *GenericParameterType[0]: class [C
+</pre>
+
+The syntax for expressing arrays of reference and primitive types acceptable to `Class.forName()` is described in `Class.getName()`. Note that the first listed constructor is `package-private`, not `public`. It is returned because the example code uses `Class.getDeclaredConstructors()` rather than `Class.getConstructors()`, which returns only `public` constructors.
+
+This example shows that searching for arguments of variable arity (which have a variable number of parameters) requires use of array syntax:
+
+<pre>
+$ <em>java ConstructorSift java.lang.ProcessBuilder "[Ljava.lang.String;"</em>
+public java.lang.ProcessBuilder(java.lang.String[])
+      *GenericParameterType[0]: class [Ljava.lang.String;
+</pre>
+
+This is the actual declaration of the `ProcessBuilder` constructor in source code:
+
+```java
+public ProcessBuilder(String... command)
+```
+
+The parameter is represented as a single-dimension array of type `java.lang.String`. This can be distinguished from a parameter that is explicitly an array of `java.lang.String` by invoking `Constructor.isVarArgs()`.
+
+The final example reports the output for a constructor which has been declared with a generic parameter type:
+
+<pre>
+$ <em>java ConstructorSift java.util.HashMap java.util.Map</em>
+public java.util.HashMap(java.util.Map<&#63; extends K, ? extends V>)
+      *GenericParameterType[0]: java.util.Map<&#63; extends K, ? extends V>
+</pre>
+
+Exception types may be retrieved for constructors in a similar way as for methods. See the `MethodSpy` example described in *Obtaining Method Type Information* section for further details.
+
+### Retrieving and Parsing Constructor Modifiers
+
+Because of the role of constructors in the language, fewer modifiers are meaningful than for methods:
+
+- Access modifiers: `public`, `protected`, and `private`
+- Annotations
+
+The `ConstructorAccess` example searches for constructors in a given class with the specified access modifier. It also displays whether the constructor is synthetic (compiler-generated) or of variable arity.
+
+<pre>
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
+import static java.lang.System.out;
+
+public class ConstructorAccess {
+    public static void main(String... args) {
+		try {
+		    Class<&#63;> c = Class.forName(args[0]);
+		    Constructor[] allConstructors = c.getDeclaredConstructors();
+		    for (Constructor ctor : allConstructors) {
+				int searchMod = modifierFromString(args[1]);
+				int mods = accessModifiers(ctor.getModifiers());
+				if (searchMod == mods) {
+				    out.format("%s%n", ctor.toGenericString());
+				    out.format("  [ synthetic=%-5b var_args=%-5b ]%n",
+					       ctor.isSynthetic(), ctor.isVarArgs());
+				}
+		    }
+
+	        // production code should handle this exception more gracefully
+		} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		}
+	}
+
+	private static int accessModifiers(int m) {
+		return m & (Modifier.PUBLIC | Modifier.PRIVATE | Modifier.PROTECTED);
+	}
+
+	private static int modifierFromString(String s) {
+		if ("public".equals(s))               return Modifier.PUBLIC;
+		else if ("protected".equals(s))       return Modifier.PROTECTED;
+		else if ("private".equals(s))         return Modifier.PRIVATE;
+		else if ("package-private".equals(s)) return 0;
+		else return -1;
+    }
+}
+</pre>
+
+There is not an explicit `Modifier` constant which corresponds to "package-private" access, so it is necessary to check for the absence of all three access modifiers to identify a package-private constructor.
+
+This output shows the private constructors in `java.io.File`:
+
+<pre>
+$ <em>java ConstructorAccess java.io.File private</em>
+private java.io.File(java.lang.String,int)
+  [ synthetic=false var_args=false ]
+private java.io.File(java.lang.String,java.io.File)
+  [ synthetic=false var_args=false ]
+</pre>
+
+Synthetic constructors are rare; however the `SyntheticConstructor` example illustrates a typical situation where this may occur:
+
+```java
+public class SyntheticConstructor {
+    private SyntheticConstructor() {}
+    class Inner {
+	// Compiler will generate a synthetic constructor since
+	// SyntheticConstructor() is private.
+	Inner() { new SyntheticConstructor(); }
+    }
+}
+```
+
+<pre>
+$ <em>java ConstructorAccess SyntheticConstructor package-private</em>
+SyntheticConstructor(SyntheticConstructor$1)
+  [ synthetic=true  var_args=false ]
+</pre>
+
+Since the inner class's constructor references the private constructor of the enclosing class, the compiler must generate a package-private constructor. The parameter type `SyntheticConstructor$1` is arbitrary and dependent on the compiler implementation. Code which depends on the presence of any synthetic or non-public class members may not be portable.
+
+Constructors implement `java.lang.reflect.AnnotatedElement`, which provides methods to retrieve runtime annotations with `java.lang.annotation.RetentionPolicy.RUNTIME`. For an example of obtaining annotations see the *Examining Class Modifiers and Types* section.
+
+### Creating New Class Instances
+
+There are two reflective methods for creating instances of classes: `java.lang.reflect.Constructor.newInstance()` and `Class.newInstance()`. The former is preferred and is thus used in these examples because:
+
+- `Class.newInstance()` can only invoke the zero-argument constructor, while `Constructor.newInstance()` may invoke any constructor, regardless of the number of parameters.
+- `Class.newInstance()` throws any exception thrown by the constructor, regardless of whether it is checked or unchecked.` Constructor.newInstance()` always wraps the thrown exception with an InvocationTargetException.
+- `Class.newInstance()` requires that the constructor be visible; `Constructor.newInstance()` may invoke `private` constructors under certain circumstances.
+
+Sometimes it may be desirable to retrieve internal state from an object which is only set after construction. Consider a scenario where it is necessary to obtain the internal character set used by `java.io.Console`. (The `Console` character set is stored in an private field and is not necessarily the same as the Java virtual machine default character set returned by `java.nio.charset.Charset.defaultCharset()`). The `ConsoleCharset` example shows how this might be achieved:
+
+```java
+import java.io.Console;
+import java.nio.charset.Charset;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import static java.lang.System.out;
+
+public class ConsoleCharset {
+    public static void main(String... args) {
+		Constructor[] ctors = Console.class.getDeclaredConstructors();
+		Constructor ctor = null;
+		for (int i = 0; i < ctors.length; i++) {
+		    ctor = ctors[i];
+		    if (ctor.getGenericParameterTypes().length == 0)
+			break;
+		}
+
+		try {
+		    ctor.setAccessible(true);
+	 	    Console c = (Console)ctor.newInstance();
+		    Field f = c.getClass().getDeclaredField("cs");
+		    f.setAccessible(true);
+		    out.format("Console charset         :  %s%n", f.get(c));
+		    out.format("Charset.defaultCharset():  %s%n",
+			       Charset.defaultCharset());
+
+	        // production code should handle these exceptions more gracefully
+		} catch (InstantiationException x) {
+		    x.printStackTrace();
+	 	} catch (InvocationTargetException x) {
+	 	    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		} catch (NoSuchFieldException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+```
+
+---
+
+**Note:**
+`Class.newInstance()` will only succeed if the constructor is has zero arguments and is already accessible. Otherwise, it is necessary to use `Constructor.newInstance()` as in the above example.
+
+---
+
+Example output for a UNIX system:
+
+<pre>
+$ <em>java ConsoleCharset</em>
+Console charset          :  ISO-8859-1
+Charset.defaultCharset() :  ISO-8859-1
+</pre>
+
+Example output for a Windows system:
+
+<pre>
+C:\> <em>java ConsoleCharset</em>
+Console charset          :  IBM437
+Charset.defaultCharset() :  windows-1252
+</pre>
+
+Another common application of `Constructor.newInstance()` is to invoke constructors which take arguments. The `RestoreAliases` example finds a specific single-argument constructor and invokes it:
+
+```java
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import static java.lang.System.out;
+
+class EmailAliases {
+    private Set<String> aliases;
+    private EmailAliases(HashMap<String, String> h) {
+		aliases = h.keySet();
+    }
+
+    public void printKeys() {
+		out.format("Mail keys:%n");
+		for (String k : aliases)
+		    out.format("  %s%n", k);
+    }
+}
+
+public class RestoreAliases {
+
+    private static Map<String, String> defaultAliases = new HashMap<String, String>();
+    static {
+		defaultAliases.put("Duke", "duke@i-love-java");
+		defaultAliases.put("Fang", "fang@evil-jealous-twin");
+    }
+
+    public static void main(String... args) {
+		try {
+		    Constructor ctor = EmailAliases.class.getDeclaredConstructor(HashMap.class);
+		    ctor.setAccessible(true);
+		    EmailAliases email = (EmailAliases)ctor.newInstance(defaultAliases);
+		    email.printKeys();
+
+	        // production code should handle these exceptions more gracefully
+		} catch (InstantiationException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		} catch (InvocationTargetException x) {
+		    x.printStackTrace();
+		} catch (NoSuchMethodException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+```
+
+This example uses `Class.getDeclaredConstructor()` to find the constructor with a single argument of type `java.util.HashMap`. Note that it is sufficient to pass `HashMap.class` since the parameter to any `get*Constructor()` method requires a class only for type purposes. Due to type erasure, the following expression evaluates to `true`:
+
+```java
+HashMap.class == defaultAliases.getClass()
+```
+
+The example then creates a new instance of the class using this constructor with `Constructor.newInstance()`.
+
+<pre>
+$ <em>java RestoreAliases</em>
+Mail keys:
+  Duke
+  Fang
+</pre>
+
+### Troubleshooting
+
+The following problems are sometimes encountered by developers when trying to invoke constructors via reflection.
+
+#### InstantiationException Due to Missing Zero-Argument Constructor
+
+The `ConstructorTrouble` example illustrates what happens when code attempts to create a new instance of a class using `Class.newInstance()` and there is no accessible zero-argument constructor:
+
+<pre>
+public class ConstructorTrouble {
+    private ConstructorTrouble(int i) {}
+
+    public static void main(String... args){
+		try {
+		    Class<&#63;> c = Class.forName("ConstructorTrouble");
+		    Object o = c.newInstance();  // InstantiationException
+
+	        // production code should handle these exceptions more gracefully
+		} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		} catch (InstantiationException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+<pre>
+$ <em>java ConstructorTrouble</em>
+java.lang.InstantiationException: ConstructorTrouble
+        at java.lang.Class.newInstance0(Class.java:340)
+        at java.lang.Class.newInstance(Class.java:308)
+        at ConstructorTrouble.main(ConstructorTrouble.java:7)
+</pre>
+
+---
+
+*Tip:** There a number of different reasons an `InstantiationException` can occur. In this case, the problem is that the presence of the constructor with an int argument prevents the compiler from generating the default (or zero-argument) constructor and there is no explicit zero-argument constructor in the code. Remember that `Class.newInstance()` behaves very much like the new keyword and will fail whenever new would fail.
+
+---
+
+#### Class.newInstance() Throws Unexpected Exception
+
+The `ConstructorTroubleToo` example shows an unresolvable problem in `Class.newInstance()`. Namely, it propagates any exception — checked or unchecked — thrown by the constructor.
+
+<pre>
+import java.lang.reflect.InvocationTargetException;
+import static java.lang.System.err;
+
+public class ConstructorTroubleToo {
+    public ConstructorTroubleToo() {
+ 		throw new RuntimeException("exception in constructor");
+    }
+
+    public static void main(String... args) {
+		try {
+		    Class<&#63;> c = Class.forName("ConstructorTroubleToo");
+		    // Method propagetes any exception thrown by the constructor
+		    // (including checked exceptions).
+		    if (args.length > 0 && args[0].equals("class")) {
+				Object o = c.newInstance();
+		    } else {
+				Object o = c.getConstructor().newInstance();
+		    }
+
+	        // production code should handle these exceptions more gracefully
+		} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		} catch (InstantiationException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		} catch (NoSuchMethodException x) {
+		    x.printStackTrace();
+		} catch (InvocationTargetException x) {
+		    x.printStackTrace();
+		    err.format("%n%nCaught exception: %s%n", x.getCause());
+		}
+    }
+}
+</pre>
+
+<pre>
+$ <em>java ConstructorTroubleToo class</em>
+Exception in thread "main" java.lang.RuntimeException: exception in constructor
+        at ConstructorTroubleToo.<init>(ConstructorTroubleToo.java:6)
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance
+          (NativeConstructorAccessorImpl.java:39)
+        at sun.reflect.DelegatingConstructorAccessorImpl.newInstance
+          (DelegatingConstructorAccessorImpl.java:27)
+        at java.lang.reflect.Constructor.newInstance(Constructor.java:513)
+        at java.lang.Class.newInstance0(Class.java:355)
+        at java.lang.Class.newInstance(Class.java:308)
+        at ConstructorTroubleToo.main(ConstructorTroubleToo.java:15)
+</pre>
+
+This situation is unique to reflection. Normally, it is impossible to write code which ignores a checked exception because it would not compile. It is possible to wrap any exception thrown by a constructor by using `Constructor.newInstance()` rather than `Class.newInstance()`.
+
+<pre>
+$ <em>java ConstructorTroubleToo</em>
+java.lang.reflect.InvocationTargetException
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance
+          (NativeConstructorAccessorImpl.java:39)
+        at sun.reflect.DelegatingConstructorAccessorImpl.newInstance
+          (DelegatingConstructorAccessorImpl.java:27)
+        at java.lang.reflect.Constructor.newInstance(Constructor.java:513)
+        at ConstructorTroubleToo.main(ConstructorTroubleToo.java:17)
+Caused by: java.lang.RuntimeException: exception in constructor
+        at ConstructorTroubleToo.<init>(ConstructorTroubleToo.java:6)
+        ... 5 more
+
+
+Caught exception: java.lang.RuntimeException: exception in constructor
+</pre>
+
+If an `InvocationTargetException` is thrown, the method was invoked. Diagnosis of the problem would be the same as if the constructor was called directly and threw the exception that is retrieved by `InvocationTargetException.getCause()`. This exception does not indicate a problem with the reflection package or its usage.
+
+---
+
+**Tip:** It is preferable to use `Constructor.newInstance()` over `Class.newInstance()` because the former API permits examination and handling of arbitrary exceptions thrown by constructors.
+
+---
+
+#### Problems Locating or Invoking the Correct Constructor
+
+The `ConstructorTroubleAgain` class illustrates various ways in which incorrect code can fail to locate or invoke the expected constructor.
+
+<pre>
+import java.lang.reflect.InvocationTargetException;
+import static java.lang.System.out;
+
+public class ConstructorTroubleAgain {
+    public ConstructorTroubleAgain() {}
+
+    public ConstructorTroubleAgain(Integer i) {}
+
+    public ConstructorTroubleAgain(Object o) {
+		out.format("Constructor passed Object%n");
+    }
+
+    public ConstructorTroubleAgain(String s) {
+		out.format("Constructor passed String%n");
+    }
+
+    public static void main(String... args){
+		String argType = (args.length == 0 ? "" : args[0]);
+		try {
+		    Class<&#63;> c = Class.forName("ConstructorTroubleAgain");
+		    if ("".equals(argType)) {
+			// IllegalArgumentException: wrong number of arguments
+			Object o = c.getConstructor().newInstance("foo");
+		    } else if ("int".equals(argType)) {
+			// NoSuchMethodException - looking for int, have Integer
+			Object o = c.getConstructor(int.class);
+		    } else if ("Object".equals(argType)) {
+			// newInstance() does not perform method resolution
+			Object o = c.getConstructor(Object.class).newInstance("foo");
+		    } else {
+			assert false;
+		    }
+
+	        // production code should handle these exceptions more gracefully
+		} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		} catch (NoSuchMethodException x) {
+		    x.printStackTrace();
+		} catch (InvocationTargetException x) {
+		    x.printStackTrace();
+		} catch (InstantiationException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+<pre>
+$ <em>java ConstructorTroubleAgain</em>
+Exception in thread "main" java.lang.IllegalArgumentException: wrong number of
+  arguments
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance
+          (NativeConstructorAccessorImpl.java:39)
+        at sun.reflect.DelegatingConstructorAccessorImpl.newInstance
+          (DelegatingConstructorAccessorImpl.java:27)
+        at java.lang.reflect.Constructor.newInstance(Constructor.java:513)
+        at ConstructorTroubleAgain.main(ConstructorTroubleAgain.java:23)
+</pre>
+
+An `IllegalArgumentException` is thrown because the zero-argument constructor was requested and an attempt was made to pass an argument. The same exception would be thrown if the constructor was passed an argument of the wrong type.
+
+<pre>
+$ <em>java ConstructorTroubleAgain int</em>
+java.lang.NoSuchMethodException: ConstructorTroubleAgain.<init>(int)
+        at java.lang.Class.getConstructor0(Class.java:2706)
+        at java.lang.Class.getConstructor(Class.java:1657)
+        at ConstructorTroubleAgain.main(ConstructorTroubleAgain.java:26)
+</pre>
+
+This exception may occur if the developer mistakenly believes that reflection will autobox or unbox types. Boxing (conversion of a primitive to a reference type) occurs only during compilation. There is no opportunity in reflection for this operation to occur, so the specific type must be used when locating a constructor.
+
+<pre>
+$ <em>java ConstructorTroubleAgain Object</em>
+Constructor passed Object
+</pre>
+
+Here, it might be expected that the constructor taking a `String` argument would be invoked since `newInstance()` was invoked with the more specific `String` type. However it is too late! The constructor which was found is already the constructor with an `Object` argument. `newInstance()` makes no attempt to do method resolution; it simply operates on the existing constructor object.
+
+---
+
+**Tip:** An important difference between `new` and `Constructor.newInstance()` is that `new` performs method argument type checking, boxing, and method resolution. None of these occur in reflection, where explicit choices must be made.
+
+---
+
+#### IllegalAccessException When Attempting to Invoke an Inaccessible Constructor
+
+An `IllegalAccessException` may be thrown if an attempt is made to invoke a private or otherwise inaccessible constructor. The `ConstructorTroubleAccess` example illustrates the resulting stack trace.
+
+```java
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+
+class Deny {
+    private Deny() {
+		System.out.format("Deny constructor%n");
+    }
+}
+
+public class ConstructorTroubleAccess {
+    public static void main(String... args) {
+		try {
+		    Constructor c = Deny.class.getDeclaredConstructor();
+//	  	    c.setAccessible(true);   // solution
+		    c.newInstance();
+
+	        // production code should handle these exceptions more gracefully
+		} catch (InvocationTargetException x) {
+		    x.printStackTrace();
+		} catch (NoSuchMethodException x) {
+		    x.printStackTrace();
+		} catch (InstantiationException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+```
+
+<pre>
+$ <em>java ConstructorTroubleAccess</em>
+java.lang.IllegalAccessException: Class ConstructorTroubleAccess can not access
+  a member of class Deny with modifiers "private"
+        at sun.reflect.Reflection.ensureMemberAccess(Reflection.java:65)
+        at java.lang.reflect.Constructor.newInstance(Constructor.java:505)
+        at ConstructorTroubleAccess.main(ConstructorTroubleAccess.java:15)
+</pre>
+
+---
+
+**Tip:** An access restriction exists which prevents reflective invocation of constructors which normally would not be accessible via direct invocation. (This includes, but is not limited to, private constructors in a separate class and public constructors in a separate private class.) However, `Constructor` is declared to extend `AccessibleObject` which provides the ability to suppress this check via `AccessibleObject.setAccessible()`.
+
+---
