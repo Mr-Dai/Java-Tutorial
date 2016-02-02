@@ -1513,6 +1513,7 @@ public boolean ExampleMethods.simpleMethod(java.lang.String,int)
 <li>
 	<code>isSynthetic</code>: Returns <code>true</code> if this parameter is neither implicitly nor explicitly declared in source code. See the section <b>Implicit and Synthetic Parameters</b> for more information.
 </li>
+</ul>
 
 #### Implicit and Synthetic Parameters
 
@@ -1752,13 +1753,9 @@ public int java.lang.String.compareTo(java.lang.Object)
 </pre>
 
 Note that `Method.isVarArgs()` returns `true` for `Class.getConstructor()`. This indicates that the method declaration looks like this:
-<pre>
-public Constructor&lt;T> getConstructor(Class<&#63;>... parameterTypes)
-</pre>
+<pre>public Constructor&lt;T> getConstructor(Class<&#63;>... parameterTypes)</pre>
 not like this:
-<pre>
-public Constructor&lt;T> getConstructor(Class<&#63;>[] parameterTypes)
-</pre>
+<pre>public Constructor&lt;T> getConstructor(Class<&#63;>[] parameterTypes)</pre>
 
 Notice that the output for `String.compareTo()` contains two methods. The method declared in `String.java`:
 ```java
@@ -2812,5 +2809,824 @@ java.lang.IllegalAccessException: Class ConstructorTroubleAccess can not access
 ---
 
 **Tip:** An access restriction exists which prevents reflective invocation of constructors which normally would not be accessible via direct invocation. (This includes, but is not limited to, private constructors in a separate class and public constructors in a separate private class.) However, `Constructor` is declared to extend `AccessibleObject` which provides the ability to suppress this check via `AccessibleObject.setAccessible()`.
+
+---
+
+# Arrays and Enumerated Types
+
+From the Java virtual machine's perspective, arrays and enumerated types (or enums) are just classes. Many of the methods in `Class` may be used on them. Reflection provides a few specific APIs for arrays and enums. This lesson uses a series of code samples to describe how to distinguish each of these objects from other classes and operate on them. Various errors are also be examined.
+
+## Arrays
+
+An `array` is an object of reference type which contains a fixed number of components of the same type; the length of an array is immutable. Creating an instance of an array requires knowledge of the length and component type. Each component may be a primitive type (e.g. `byte`, `int`, or `double`), a reference type (e.g. `String`, `Object`, or `java.nio.CharBuffer`), or an array. Multi-dimensional arrays are really just arrays which contain components of array type.
+
+Arrays are implemented in the Java virtual machine. The only methods on arrays are those inherited from `Object`. The length of an array is not part of its type; arrays have a `length` field which is accessible via `java.lang.reflect.Array.getLength()`.
+
+Reflection provides methods for accessing array types and array component types, creating new arrays, and retrieving and setting array component values. The following sections include examples of common operations on arrays:
+
+- **Identifying Array Types** describes how to determine if a class member is a field of array type
+- **Creating New Arrays** illustrates how to create new instances of arrays with simple and complex component types
+- **Getting and Setting Arrays and Their Components** shows how to access fields of type array and individually access array elements
+- **Troubleshooting** covers common errors and programming misconceptions
+
+All of these operations are supported via `static` methods in `java.lang.reflect.Array`.
+
+### Identifying Array Types
+
+Array types may be identified by invoking `Class.isArray()`. To obtain a `Class` use one of the methods described in *Retrieving Class Objects* section of this trail.
+
+The `ArrayFind` example identifies the fields in the named class that are of array type and reports the component type for each of them.
+
+<pre>
+import java.lang.reflect.Field;
+import java.lang.reflect.Type;
+import static java.lang.System.out;
+
+public class ArrayFind {
+    public static void main(String... args) {
+		boolean found = false;
+	 	try {
+		    Class<&#63;> cls = Class.forName(args[0]);
+		    Field[] flds = cls.getDeclaredFields();
+		    for (Field f : flds) {
+		 		Class<&#63;> c = f.getType();
+				if (c.isArray()) {
+				    found = true;
+				    out.format("%s%n"
+		                               + "           Field: %s%n"
+					       + "            Type: %s%n"
+					       + "  Component Type: %s%n",
+					       f, f.getName(), c, c.getComponentType());
+				}
+		    }
+		    if (!found) {
+			out.format("No array fields%n");
+		    }
+
+	        // production code should handle this exception more gracefully
+	 	} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+The syntax for the returned value of `Class.get*Type()` is described in `Class.getName()`. The number of '`[`' characters at the beginning of the type name indicates the number of dimensions (i.e. depth of nesting) of the array.
+
+Samples of the output follows. User input is in italics. An array of primitive type `byte`:
+
+<pre>
+$ <em>java ArrayFind java.nio.ByteBuffer</em>
+final byte[] java.nio.ByteBuffer.hb
+           Field: hb
+            Type: class [B
+  Component Type: byte
+</pre>
+
+An array of reference type `StackTraceElement`:
+
+<pre>
+$ <em>java ArrayFind java.lang.Throwable</em>
+private java.lang.StackTraceElement[] java.lang.Throwable.stackTrace
+           Field: stackTrace
+            Type: class [Ljava.lang.StackTraceElement;
+  Component Type: class java.lang.StackTraceElement
+</pre>
+
+`predefined` is a one-dimensional array of reference type `java.awt.Cursor` and `cursorProperties` is a two-dimensional array of reference type `String`:
+
+<pre>
+$ <em>java ArrayFind java.awt.Cursor</em>
+protected static java.awt.Cursor[] java.awt.Cursor.predefined
+           Field: predefined
+            Type: class [Ljava.awt.Cursor;
+  Component Type: class java.awt.Cursor
+static final java.lang.String[][] java.awt.Cursor.cursorProperties
+           Field: cursorProperties
+            Type: class [[Ljava.lang.String;
+  Component Type: class [Ljava.lang.String;
+</pre>
+
+### Creating New Arrays
+
+Just as in non-reflective code, reflection supports the ability to dynamically create arrays of arbitrary type and dimensions via `java.lang.reflect.Array.newInstance()`. Consider `ArrayCreator`, a basic interpreter capable of dynamically creating arrays. The syntax that will be parsed is as follows:
+
+<pre>
+fully_qualified_class_name variable_name[] = 
+     { val1, val2, val3, ... }
+</pre>
+
+Assume that the `fully_qualified_class_name` represents a class that has a constructor with a single `String` argument. The dimensions of the array are determined by the number of values provided. The following example will construct an instance of an array of `fully_qualified_class_name` and populate its values with instances given by `val1`, `val2`, etc. (This example assumes familiarity with `Class.getConstructor()` and `java.lang.reflect.Constructor.newInstance()`. For a discussion of the reflection APIs for `Constructor` see the *Creating New Class Instances* section of this trail.)
+
+<pre>
+import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.util.Arrays;
+import static java.lang.System.out;
+
+public class ArrayCreator {
+    private static String s = "java.math.BigInteger bi[] = { 123, 234, 345 }";
+    private static Pattern p = Pattern.compile("^\\s*(\\S+)\\s*\\w+\\[\\].*\\{\\s*([^}]+)\\s*\\}");
+
+    public static void main(String... args) {
+        Matcher m = p.matcher(s);
+
+        if (m.find()) {
+            String cName = m.group(1);
+            String[] cVals = m.group(2).split("[\\s,]+");
+            int n = cVals.length;
+
+            try {
+                Class<&#63;> c = Class.forName(cName);
+                Object o = Array.newInstance(c, n);
+                for (int i = 0; i < n; i++) {
+                    String v = cVals[i];
+                    Constructor ctor = c.getConstructor(String.class);
+                    Object val = ctor.newInstance(v);
+                    Array.set(o, i, val);
+                }
+
+                Object[] oo = (Object[])o;
+                out.format("%s[] = %s%n", cName, Arrays.toString(oo));
+
+            // production code should handle these exceptions more gracefully
+            } catch (ClassNotFoundException x) {
+                x.printStackTrace();
+            } catch (NoSuchMethodException x) {
+                x.printStackTrace();
+            } catch (IllegalAccessException x) {
+                x.printStackTrace();
+            } catch (InstantiationException x) {
+                x.printStackTrace();
+            } catch (InvocationTargetException x) {
+                x.printStackTrace();
+            }
+        }
+    }
+}
+</pre>
+
+<pre>
+$ <em>java ArrayCreator</em>
+java.math.BigInteger [] = [123, 234, 345]
+</pre>
+
+The above example shows one case where it may be desirable to create an array via reflection; namely if the component type is not known until runtime. In this case, the code uses `Class.forName()` to get a class for the desired component type and then calls a specific constructor to initialize each component of the array before setting the corresponding array value.
+
+### Getting and Setting Arrays and Their Components
+
+Just as in non-reflective code, an array field may be set or retrieved in its entirety or component by component. To set the entire array at once, use `java.lang.reflect.Field.set(Object obj, Object value)`. To retrieve the entire array, use `Field.get(Object)`. Individual components can be set or retrieved using methods in `java.lang.reflect.Array`.
+
+`Array` provides methods of the form `setFoo()` and `getFoo()` for setting and getting components of any primitive type. For example, the component of an `int` array may be set with `Array.setInt(Object array, int index, int value)` and may be retrieved with `Array.getInt(Object array, int index)`.
+
+These methods support automatic *widening* of data types. Therefore, `Array.getShort()` may be used to set the values of an `int` array since a 16-bit `short` may be widened to a 32-bit `int` without loss of data; on the other hand, invoking `Array.setLong()` on an array of int will cause an `IllegalArgumentException` to be thrown because a 64-bit `long` can not be narrowed to for storage in a 32-bit `int` without loss of information. This is true regardless of whether the actual values being passed could be accurately represented in the target data type. *The Java Language Specification, Java SE 7 Edition*, sections *Widening Primitive Conversion* and *Narrowing Primitive Conversion* contains a complete discussion of widening and narrowing conversions.
+
+The components of arrays of reference types (including arrays of arrays) are set and retrieved using `Array.set(Object array, int index, int value)` and `Array.get(Object array, int index)`.
+
+#### Setting a Field of Type Array
+
+The `GrowBufferedReader` example illustrates how to replace the value of a field of type array. In this case, the code replaces the backing array for a `java.io.BufferedReader` with a larger one. (This assumes that the creation of the original `BufferedReader` is in code that is not modifiable; otherwise, it would be trivial to simply use the alternate constructor `BufferedReader(java.io.Reader in, int size)` which accepts an input buffer size.)
+
+<pre>
+import java.io.BufferedReader;
+import java.io.CharArrayReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.Arrays;
+import static java.lang.System.out;
+
+public class GrowBufferedReader {
+    private static final int srcBufSize = 10 * 1024;
+    private static char[] src = new char[srcBufSize];
+    static {
+		src[srcBufSize - 1] = 'x';
+    }
+    private static CharArrayReader car = new CharArrayReader(src);
+
+    public static void main(String... args) {
+		try {
+		    BufferedReader br = new BufferedReader(car);
+
+		    Class<&#63;> c = br.getClass();
+		    Field f = c.getDeclaredField("cb");
+
+		    // cb is a private field
+		    f.setAccessible(true);
+		    char[] cbVal = char[].class.cast(f.get(br));
+
+		    char[] newVal = Arrays.copyOf(cbVal, cbVal.length * 2);
+		    if (args.length > 0 && args[0].equals("grow"))
+			f.set(br, newVal);
+
+		    for (int i = 0; i < srcBufSize; i++)
+			br.read();
+
+		    // see if the new backing array is being used
+		    if (newVal[srcBufSize - 1] == src[srcBufSize - 1])
+			out.format("Using new backing array, size=%d%n", newVal.length);
+		    else
+			out.format("Using original backing array, size=%d%n", cbVal.length);
+
+	        // production code should handle these exceptions more gracefully
+		} catch (FileNotFoundException x) {
+		    x.printStackTrace();
+		} catch (NoSuchFieldException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		} catch (IOException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+<pre>
+$ <em>java GrowBufferedReader grow</em>
+Using new backing array, size=16384
+$ <em>java GrowBufferedReader</em>
+Using original backing array, size=8192
+</pre>
+
+Note that the above example makes use of the array utility method `java.util.Arrays.copyOf(char[] original, int newLength)`. `java.util.Arrays` contains many methods which are convenient when operating on arrays.
+
+#### Accessing Elements of a Multidimensional Array
+
+Multi-dimensional arrays are simply nested arrays. A two-dimensional array is an array of arrays. A three-dimensional array is an array of two-dimensional arrays, and so on. The `CreateMatrix` example illustrates how to create and initialize a multi-dimensional array using reflection.
+
+```java
+import java.lang.reflect.Array;
+import static java.lang.System.out;
+
+public class CreateMatrix {
+    public static void main(String... args) {
+        Object matrix = Array.newInstance(int.class, 2, 2);
+        Object row0 = Array.get(matrix, 0);
+        Object row1 = Array.get(matrix, 1);
+
+        Array.setInt(row0, 0, 1);
+        Array.setInt(row0, 1, 2);
+        Array.setInt(row1, 0, 3);
+        Array.setInt(row1, 1, 4);
+
+        for (int i = 0; i < 2; i++)
+            for (int j = 0; j < 2; j++)
+                out.format("matrix[%d][%d] = %d%n", i, j, ((int[][])matrix)[i][j]);
+    }
+}
+```
+
+<pre>
+$ <em>java CreateMatrix</em>
+matrix[0][0] = 1
+matrix[0][1] = 2
+matrix[1][0] = 3
+matrix[1][1] = 4
+</pre>
+
+The same result could be obtained by using the following code fragment:
+
+```java
+Object matrix = Array.newInstance(int.class, 2);
+Object row0 = Array.newInstance(int.class, 2);
+Object row1 = Array.newInstance(int.class, 2);
+
+Array.setInt(row0, 0, 1);
+Array.setInt(row0, 1, 2);
+Array.setInt(row1, 0, 3);
+Array.setInt(row1, 1, 4);
+
+Array.set(matrix, 0, row0);
+Array.set(matrix, 1, row1);
+```
+
+The variable argument <code>Array.newInstance(Class<&#63;> componentType, int... dimensions)</code> provides a convenient way to create multi-dimensional arrays, but the components still need to initialized using the principle that that multi-dimensional arrays are nested arrays. (Reflection does not provide multiple indexed `get/set` methods for this purpose.)
+
+### Troubleshooting
+
+The following examples show typical errors which may occur when operating on arrays.
+
+#### IllegalArgumentException due to Inconvertible Types
+
+The `ArrayTroubleAgain` example will generate an `IllegalArgumentException`. `Array.setInt()` is invoked to set a component that is of the reference type `Integer` with a value of primitive type `int`. In the non-reflection equivalent `ary[0] = 1`, the compiler would convert (or *box*) the value `1` to a reference type as `new Integer(1)` so that its type checking will accept the statement. When using reflection, type checking only occurs at runtime so there is no opportunity to box the value.
+
+```java
+import java.lang.reflect.Array;
+import static java.lang.System.err;
+
+public class ArrayTroubleAgain {
+    public static void main(String... args) {
+		Integer[] ary = new Integer[2];
+		try {
+		    Array.setInt(ary, 0, 1);  // IllegalArgumentException
+
+	        // production code should handle these exceptions more gracefully
+		} catch (IllegalArgumentException x) {
+		    err.format("Unable to box%n");
+		} catch (ArrayIndexOutOfBoundsException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+```
+
+<pre>
+$ <em>java ArrayTroubleAgain</em>
+Unable to box
+</pre>
+
+To eliminate this exception, the problematic line should be replaced by the following invocation of `Array.set(Object array, int index, Object value)`:
+
+```java
+Array.set(ary, 0, new Integer(1));
+```
+
+---
+
+**Tip:** When using reflection to set or get an array component, the compiler does not have an opportunity to perform boxing. It can only convert types that are related as described by the specification for `Class.isAssignableFrom()`. The example is expected to fail because `isAssignableFrom()` will return `false` in this test which can be used programmatically to verify whether a particular conversion is possible:
+
+```java
+Integer.class.isAssignableFrom(int.class) == false
+```
+
+Similarly, automatic conversion from primitive to reference type is also impossible in reflection.
+
+```java
+int.class.isAssignableFrom(Integer.class) == false
+```
+
+---
+
+#### ArrayIndexOutOfBoundsException for Empty Arrays
+
+The `ArrayTrouble` example illustrates an error which will occur if an attempt is made to access the elements of an array of zero length:
+
+```java
+import java.lang.reflect.Array;
+import static java.lang.System.out;
+
+public class ArrayTrouble {
+    public static void main(String... args) {
+        Object o = Array.newInstance(int.class, 0);
+        int[] i = (int[])o;
+        int[] j = new int[0];
+        out.format("i.length = %d, j.length = %d, args.length = %d%n",
+                   i.length, j.length, args.length);
+        Array.getInt(o, 0);  // ArrayIndexOutOfBoundsException
+    }
+}
+```
+
+<pre>
+$ <em>java ArrayTrouble</em>
+i.length = 0, j.length = 0, args.length = 0
+Exception in thread "main" java.lang.ArrayIndexOutOfBoundsException
+        at java.lang.reflect.Array.getInt(Native Method)
+        at ArrayTrouble.main(ArrayTrouble.java:11)
+</pre>
+
+---
+
+**Tip:** It is possible to have arrays with no elements (empty arrays). There are only a few cases in common code where they are seen but they can occur in reflection inadvertently. Of course, it is not possible to set/get the values of an empty array because an `ArrayIndexOutOfBoundsException` will be thrown.
+
+---
+
+#### IllegalArgumentException if Narrowing is Attempted
+
+The `ArrayTroubleToo` example contains code which fails because it attempts perform an operation which could potentially lose data:
+
+```java
+import java.lang.reflect.Array;
+import static java.lang.System.out;
+
+public class ArrayTroubleToo {
+    public static void main(String... args) {
+        Object o = new int[2];
+        Array.setShort(o, 0, (short)2);  // widening, succeeds
+        Array.setLong(o, 1, 2L);         // narrowing, fails
+    }
+}
+```
+
+<pre>
+$ <em>java ArrayTroubleToo</em>
+Exception in thread "main" java.lang.IllegalArgumentException: argument type
+  mismatch
+        at java.lang.reflect.Array.setLong(Native Method)
+        at ArrayTroubleToo.main(ArrayTroubleToo.java:9)
+</pre>
+
+---
+
+**Tip:** The `Array.set*()` and `Array.get*()` methods will perform automatic widening conversion but will throw an `IllegalArgumentException` if a narrowing conversion is attempted. For complete discussion of widening and narrowing conversions, see *The Java Language Specification, Java SE 7 Edition*, sections *Widening Primitive Conversion* and *Narrowing Primitive Conversion* respectively.
+
+---
+
+## Enumerated Types
+
+An *enum* is a language construct that is used to define type-safe enumerations which can be used when a fixed set of named values is desired. All enums implicitly extend `java.lang.Enum`. Enums may contain one or more *enum constants*, which define unique instances of the enum type. An enum declaration defines an *enum type* which is very similar to a class in that it may have members such as fields, methods, and constructors (with some restrictions).
+
+Since enums are classes, reflection has no need to define an explicit `java.lang.reflect.Enum` class. The only Reflection APIs that are specific to enums are `Class.isEnum()`, `Class.getEnumConstants()`, and `java.lang.reflect.Field.isEnumConstant()`. Most reflective operations involving enums are the same as any other class or member. For example, enum constants are implemented as `public static final` fields on the enum. The following sections show how to use `Class` and `java.lang.reflect.Field` with enums.
+
+- **Examining Enums** illustrates how to retrieve an enum's constants and any other fields, constructors, and methods
+- **Getting and Setting** Fields with Enum Types shows how to set and get fields with an enum constant value
+- **Troubleshooting** describes common errors associated with enums
+
+### Examining Enums
+
+Reflection provides three enum-specific APIs:
+
+<dl>
+	<dt><code>Class.isEnum()</code></dt>
+	<dd>Indicates whether this class represents an enum type</dd>
+	<dt><code>Class.getEnumConstants()</code></dt>
+	<dd>Retrieves the list of enum constants defined by the enum in the order they&#39;re declared</dd>
+	<dt><code>java.lang.reflect.Field.isEnumConstant()</code></dt>
+	<dd>Indicates whether this field represents an element of an enumerated type</dd>
+</dl>
+
+Sometimes it is necessary to dynamically retrieve the list of enum constants; in non-reflective code this is accomplished by invoking the implicitly declared static method `values()` on the enum. If an instance of an enum type is not available the only way to get a list of the possible values is to invoke `Class.getEnumConstants()` since it is impossible to instantiate an enum type.
+
+Given a fully qualified name, the `EnumConstants` example shows how to retrieve an ordered list of constants in an enum using `Class.getEnumConstants()`.
+
+<pre>
+import java.util.Arrays;
+import static java.lang.System.out;
+
+enum Eon { HADEAN, ARCHAEAN, PROTEROZOIC, PHANEROZOIC }
+
+public class EnumConstants {
+    public static void main(String... args) {
+		try {
+		    Class<&#63;> c = (args.length == 0 ? Eon.class : Class.forName(args[0]));
+		    out.format("Enum name:  %s%nEnum constants:  %s%n",
+			       c.getName(), Arrays.asList(c.getEnumConstants()));
+		    if (c == Eon.class)
+			out.format("  Eon.values():  %s%n",
+				   Arrays.asList(Eon.values()));
+
+	        // production code should handle this exception more gracefully
+		} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+Samples of the output follows. User input is in italics.
+
+<pre>
+$ <em>java EnumConstants java.lang.annotation.RetentionPolicy</em>
+Enum name:  java.lang.annotation.RetentionPolicy
+Enum constants:  [SOURCE, CLASS, RUNTIME]
+$ <em>java EnumConstants java.util.concurrent.TimeUnit</em>
+Enum name:  java.util.concurrent.TimeUnit
+Enum constants:  [NANOSECONDS, MICROSECONDS, 
+                  MILLISECONDS, SECONDS, 
+                  MINUTES, HOURS, DAYS]
+</pre>
+
+This example also shows that value returned by `Class.getEnumConstants()` is identical to the value returned by invoking `values()` on an enum type.
+
+<pre>
+$ <em>java EnumConstants</em>
+Enum name:  Eon
+Enum constants:  [HADEAN, ARCHAEAN, 
+                  PROTEROZOIC, PHANEROZOIC]
+Eon.values():  [HADEAN, ARCHAEAN, 
+                PROTEROZOIC, PHANEROZOIC]
+</pre>
+
+Since enums are classes, other information may be obtained using the same Reflection APIs described in the *Fields*, *Methods*, and *Constructors* sections of this trail. The `EnumSpy` code illustrates how to use these APIs to get additional information about the enum's declaration. The example uses `Class.isEnum()` to restrict the set of classes examined. It also uses `Field.isEnumConstant()` to distinguish enum constants from other fields in the enum declaration (not all fields are enum constants).
+
+<pre>
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Member;
+import java.util.List;
+import java.util.ArrayList;
+import static java.lang.System.out;
+
+public class EnumSpy {
+    private static final String fmt = "  %11s:  %s %s%n";
+
+    public static void main(String... args) {
+		try {
+		    Class<&#63;> c = Class.forName(args[0]);
+		    if (!c.isEnum()) {
+			out.format("%s is not an enum type%n", c);
+			return;
+		    }
+		    out.format("Class:  %s%n", c);
+
+		    Field[] flds = c.getDeclaredFields();
+		    List&lt;Field> cst = new ArrayList&lt;Field>();  // enum constants
+		    List&lt;Field> mbr = new ArrayList&lt;Field>();  // member fields
+		    for (Field f : flds) {
+			if (f.isEnumConstant())
+			    cst.add(f);
+			else
+			    mbr.add(f);
+		    }
+		    if (!cst.isEmpty())
+			print(cst, "Constant");
+		    if (!mbr.isEmpty())
+			print(mbr, "Field");
+
+		    Constructor[] ctors = c.getDeclaredConstructors();
+		    for (Constructor ctor : ctors) {
+			out.format(fmt, "Constructor", ctor.toGenericString(),
+				   synthetic(ctor));
+		    }
+
+		    Method[] mths = c.getDeclaredMethods();
+		    for (Method m : mths) {
+			out.format(fmt, "Method", m.toGenericString(),
+				   synthetic(m));
+		    }
+
+	        // production code should handle this exception more gracefully
+		} catch (ClassNotFoundException x) {
+		    x.printStackTrace();
+		}
+    }
+
+    private static void print(List&lt;Field> lst, String s) {
+		for (Field f : lst) {
+	 	    out.format(fmt, s, f.toGenericString(), synthetic(f));
+		}
+    }
+
+    private static String synthetic(Member m) {
+		return (m.isSynthetic() ? "[ synthetic ]" : "");
+    }
+}
+</pre>
+
+<pre>
+$ <em>java EnumSpy java.lang.annotation.RetentionPolicy</em>
+Class:  class java.lang.annotation.RetentionPolicy
+     Constant:  public static final java.lang.annotation.RetentionPolicy
+                  java.lang.annotation.RetentionPolicy.SOURCE 
+     Constant:  public static final java.lang.annotation.RetentionPolicy
+                  java.lang.annotation.RetentionPolicy.CLASS 
+     Constant:  public static final java.lang.annotation.RetentionPolicy 
+                  java.lang.annotation.RetentionPolicy.RUNTIME 
+        Field:  private static final java.lang.annotation.RetentionPolicy[] 
+                  java.lang.annotation.RetentionPolicy. [ synthetic ]
+  Constructor:  private java.lang.annotation.RetentionPolicy() 
+       Method:  public static java.lang.annotation.RetentionPolicy[]
+                  java.lang.annotation.RetentionPolicy.values() 
+       Method:  public static java.lang.annotation.RetentionPolicy
+                  java.lang.annotation.RetentionPolicy.valueOf(java.lang.String) 
+</pre>
+
+The output shows that declaration of `java.lang.annotation.RetentionPolicy` only contains the three enum constants. The enum constants are exposed as `public static final` fields. The field, constructor, and methods are compiler generated. The `$VALUES` field is related to the implementation of the `values()` method.
+
+---
+
+**Note:** For various reasons, including support for evolution of the enum type, the declaration order of enum constants is important. `Class.getFields()` and `Class.getDeclaredFields()` do not make any guarantee that the order of the returned values matches the order in the declaring source code. If ordering is required by an application, use `Class.getEnumConstants()`.
+
+---
+
+The output for `java.util.concurrent.TimeUnit` shows that much more complicated enums are possible. This class includes several methods as well as additional fields declared `static final` which are not enum constants.
+
+<pre>
+$ <em>java EnumSpy java.util.concurrent.TimeUnit</em>
+Class:  class java.util.concurrent.TimeUnit
+     Constant:  public static final java.util.concurrent.TimeUnit
+                  java.util.concurrent.TimeUnit.NANOSECONDS
+     Constant:  public static final java.util.concurrent.TimeUnit
+                  java.util.concurrent.TimeUnit.MICROSECONDS
+     Constant:  public static final java.util.concurrent.TimeUnit
+                  java.util.concurrent.TimeUnit.MILLISECONDS
+     Constant:  public static final java.util.concurrent.TimeUnit
+                  java.util.concurrent.TimeUnit.SECONDS
+     Constant:  public static final java.util.concurrent.TimeUnit
+                  java.util.concurrent.TimeUnit.MINUTES
+     Constant:  public static final java.util.concurrent.TimeUnit
+                  java.util.concurrent.TimeUnit.HOURS
+     Constant:  public static final java.util.concurrent.TimeUnit
+                  java.util.concurrent.TimeUnit.DAYS
+        Field:  static final long java.util.concurrent.TimeUnit.C0
+        Field:  static final long java.util.concurrent.TimeUnit.C1
+        Field:  static final long java.util.concurrent.TimeUnit.C2
+        Field:  static final long java.util.concurrent.TimeUnit.C3
+        Field:  static final long java.util.concurrent.TimeUnit.C4
+        Field:  static final long java.util.concurrent.TimeUnit.C5
+        Field:  static final long java.util.concurrent.TimeUnit.C6
+        Field:  static final long java.util.concurrent.TimeUnit.MAX
+        Field:  private static final java.util.concurrent.TimeUnit[] 
+                  java.util.concurrent.TimeUnit. [ synthetic ]
+  Constructor:  private java.util.concurrent.TimeUnit()
+  Constructor:  java.util.concurrent.TimeUnit
+                  (java.lang.String,int,java.util.concurrent.TimeUnit)
+                  [ synthetic ]
+       Method:  public static java.util.concurrent.TimeUnit
+                  java.util.concurrent.TimeUnit.valueOf(java.lang.String)
+       Method:  public static java.util.concurrent.TimeUnit[] 
+                  java.util.concurrent.TimeUnit.values()
+       Method:  public void java.util.concurrent.TimeUnit.sleep(long) 
+                  throws java.lang.InterruptedException
+       Method:  public long java.util.concurrent.TimeUnit.toNanos(long)
+       Method:  public long java.util.concurrent.TimeUnit.convert
+                  (long,java.util.concurrent.TimeUnit)
+       Method:  abstract int java.util.concurrent.TimeUnit.excessNanos
+                  (long,long)
+       Method:  public void java.util.concurrent.TimeUnit.timedJoin
+                  (java.lang.Thread,long) throws java.lang.InterruptedException
+       Method:  public void java.util.concurrent.TimeUnit.timedWait
+                  (java.lang.Object,long) throws java.lang.InterruptedException
+       Method:  public long java.util.concurrent.TimeUnit.toDays(long)
+       Method:  public long java.util.concurrent.TimeUnit.toHours(long)
+       Method:  public long java.util.concurrent.TimeUnit.toMicros(long)
+       Method:  public long java.util.concurrent.TimeUnit.toMillis(long)
+       Method:  public long java.util.concurrent.TimeUnit.toMinutes(long)
+       Method:  public long java.util.concurrent.TimeUnit.toSeconds(long)
+       Method:  static long java.util.concurrent.TimeUnit.x(long,long,long)
+</pre>
+
+### Getting and Setting Fields with Enum Types
+
+Fields which store enums are set and retrieved as any other reference type, using `Field.set()` and `Field.get()`. For more information on accessing fields, see the Fields section of this trail.
+
+Consider application which needs to dynamically modify the trace level in a server application which normally does not allow this change during runtime. Assume the instance of the server object is available. The `SetTrace` example shows how code can translate the `String` representation of an enum into an enum type and retrieve and set the value of a field storing an enum.
+
+<pre>
+import java.lang.reflect.Field;
+import static java.lang.System.out;
+
+enum TraceLevel { OFF, LOW, MEDIUM, HIGH, DEBUG }
+
+class MyServer {
+    private TraceLevel level = TraceLevel.OFF;
+}
+
+public class SetTrace {
+    public static void main(String... args) {
+		TraceLevel newLevel = TraceLevel.valueOf(args[0]);
+
+		try {
+		    MyServer svr = new MyServer();
+		    Class<&#63;> c = svr.getClass();
+		    Field f = c.getDeclaredField("level");
+		    f.setAccessible(true);
+		    TraceLevel oldLevel = (TraceLevel)f.get(svr);
+		    out.format("Original trace level:  %s%n", oldLevel);
+
+		    if (oldLevel != newLevel) {
+	 		f.set(svr, newLevel);
+			out.format("    New  trace level:  %s%n", f.get(svr));
+		    }
+
+	        // production code should handle these exceptions more gracefully
+		} catch (IllegalArgumentException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		} catch (NoSuchFieldException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+Since the enum constants are singletons, the == and != operators may be used to compare enum constants of the same type.
+
+<pre>
+$ <em>java SetTrace OFF</em>
+Original trace level:  OFF
+$ <em>java SetTrace DEBUG</em>
+Original trace level:  OFF
+    New  trace level:  DEBUG
+</pre>
+
+### Troubleshooting
+
+The following examples show problems which may be encountered when using enumerated types.
+
+#### IllegalArgumentException When Attempting to Instantiate an Enum Type
+
+As has been mentioned, instantiation of enum types is forbidden. The `EnumTrouble` example attempts this.
+
+<pre>
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import static java.lang.System.out;
+
+enum Charge {
+    POSITIVE, NEGATIVE, NEUTRAL;
+    Charge() {
+	out.format("under construction%n");
+    }
+}
+
+public class EnumTrouble {
+
+    public static void main(String... args) {
+		try {
+		    Class<&#63;> c = Charge.class;
+
+	 	    Constructor[] ctors = c.getDeclaredConstructors();
+	 	    for (Constructor ctor : ctors) {
+				out.format("Constructor: %s%n",  ctor.toGenericString());
+		 		ctor.setAccessible(true);
+		 		ctor.newInstance();
+	 	    }
+
+	        // production code should handle these exceptions more gracefully
+		} catch (InstantiationException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		} catch (InvocationTargetException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+</pre>
+
+<pre>
+$ <em>java EnumTrouble</em>
+Constructor: private Charge()
+Exception in thread "main" java.lang.IllegalArgumentException: Cannot
+  reflectively create enum objects
+        at java.lang.reflect.Constructor.newInstance(Constructor.java:511)
+        at EnumTrouble.main(EnumTrouble.java:22)
+</pre>
+
+---
+
+**Tip:** It is a compile-time error to attempt to explicitly instantiate an enum because that would prevent the defined enum constants from being unique. This restriction is also enforced in reflective code. Code which attempts to instantiate classes using their default constructors should invoke `Class.isEnum()` first to determine if the class is an enum.
+
+---
+
+#### IllegalArgumentException when Setting a Field with an Incompatible Enum Type
+
+Fields storing enums set with the appropriate enum type. (Actually, fields of *any* type must be set with compatible types.) The `EnumTroubleToo` example produces the expected error.
+
+```java
+import java.lang.reflect.Field;
+
+enum E0 { A, B }
+enum E1 { A, B }
+
+class ETest {
+    private E0 fld = E0.A;
+}
+
+public class EnumTroubleToo {
+    public static void main(String... args) {
+		try {
+		    ETest test = new ETest();
+		    Field f = test.getClass().getDeclaredField("fld");
+		    f.setAccessible(true);
+	 	    f.set(test, E1.A);  // IllegalArgumentException
+
+	        // production code should handle these exceptions more gracefully
+		} catch (NoSuchFieldException x) {
+		    x.printStackTrace();
+		} catch (IllegalAccessException x) {
+		    x.printStackTrace();
+		}
+    }
+}
+```
+
+<pre>
+$ <em>java EnumTroubleToo</em>
+Exception in thread "main" java.lang.IllegalArgumentException: Can not set E0
+  field ETest.fld to E1
+        at sun.reflect.UnsafeFieldAccessorImpl.throwSetIllegalArgumentException
+          (UnsafeFieldAccessorImpl.java:146)
+        at sun.reflect.UnsafeFieldAccessorImpl.throwSetIllegalArgumentException
+          (UnsafeFieldAccessorImpl.java:150)
+        at sun.reflect.UnsafeObjectFieldAccessorImpl.set
+          (UnsafeObjectFieldAccessorImpl.java:63)
+        at java.lang.reflect.Field.set(Field.java:657)
+        at EnumTroubleToo.main(EnumTroubleToo.java:16)
+</pre>
+
+---
+
+**Tip:** Strictly speaking, any attempt to set a field of type `X` to a value of type `Y` can only succeed if the following statement holds:
+
+```java
+X.class.isAssignableFrom(Y.class) == true
+```
+
+The code could be modified to perform the following test to verify whether the types are compatible:
+
+```java
+if (f.getType().isAssignableFrom(E0.class))
+    // compatible
+else
+    // expect IllegalArgumentException
+```
 
 ---
