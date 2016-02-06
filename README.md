@@ -6,6 +6,13 @@
 
 The printable version should come in two different format: zipped Markdown and LaTeX PDF. Source files of different topics can be found in their corresponding folders.
 
+## TODO List
+
+- [x] Generics
+- [x] Reflection
+- [ ] IO
+- [ ] NIO
+
 ## LICENSE
 
 Copyright {2016} {Mr-Dai}
