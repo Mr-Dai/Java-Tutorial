@@ -6,25 +6,19 @@
 
 The printable version should come in two different format: zipped Markdown and LaTeX PDF. Source files of different topics can be found in their corresponding folders.
 
+The index of the official tutorial is [here](http://docs.oracle.com/javase/tutorial/reallybigindex.html).
+
 ## TODO List
 
-- [x] Generics
-- [x] Reflection
-- [ ] IO
-- [ ] NIO
-
-## LICENSE
-
-Copyright {2016} {Mr-Dai}
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+- [x] [Generics](http://docs.oracle.com/javase/tutorial/extra/generics/index.html)
+- [x] [Reflection](http://docs.oracle.com/javase/tutorial/reflect/index.html)
+- [ ] [Concurrency](http://docs.oracle.com/javase/tutorial/essential/concurrency/index.html)
+- [ ] [Basic I/O](http://docs.oracle.com/javase/tutorial/essential/io/index.html)
+- [ ] [Custom Networking](http://docs.oracle.com/javase/tutorial/networking/index.html)
+- [ ] [Sockets Direct Protocol](http://docs.oracle.com/javase/tutorial/sdp/index.html)
+- [ ] [JDBC](http://docs.oracle.com/javase/tutorial/jdbc/index.html)
+- [ ] [JAXP](http://docs.oracle.com/javase/tutorial/jaxp/index.html)
+- [ ] [JNDI](http://docs.oracle.com/javase/tutorial/jndi/index.html)
+- [ ] [Security](http://docs.oracle.com/javase/tutorial/security/index.html)
+- [ ] [JMX](http://docs.oracle.com/javase/tutorial/jmx/index.html)
+- [ ] [JAXB](http://docs.oracle.com/javase/tutorial/jaxb/index.html)
