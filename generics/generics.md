@@ -1,5 +1,3 @@
-[TOC]
-
 # Introduction
 
 JDK 5.0 introduces several new extensions to the Java programming language. One of these is the introduction of *generics*.
