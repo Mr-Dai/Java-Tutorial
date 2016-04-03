@@ -18,7 +18,7 @@ A process has a self-contained execution environment. A process generally has a 
 
 Processes are often seen as synonymous with programs or applications. However, what the user sees as a single application may in fact be a set of cooperating processes. To facilitate communication between processes, most operating systems support *Inter Process Communication* (IPC) resources, such as pipes and sockets. IPC is used not just for communication between processes on the same system, but processes on different systems.
 
-Most implementations of the Java virtual machine run as a single process. A Java application can create additional processes using a [ProcessBuilder](https://docs.oracle.com/javase/8/docs/api/java/lang/ProcessBuilder.html) object. Multiprocess applications are beyond the scope of this lesson.
+Most implementations of the Java virtual machine run as a single process. A Java application can create additional processes using a `ProcessBuilder` object. Multiprocess applications are beyond the scope of this lesson.
 
 **Threads**
 
@@ -30,7 +30,7 @@ Multithreaded execution is an essential feature of the Java platform. Every appl
 
 # Thread Objects
 
-Each thread is associated with an instance of the class [Thread](https://docs.oracle.com/javase/8/docs/api/java/lang/Thread.html). There are two basic strategies for using `Thread` objects to create a concurrent application.
+Each thread is associated with an instance of the class `Thread`. There are two basic strategies for using `Thread` objects to create a concurrent application.
 
 - To directly control thread creation and management, simply instantiate `Thread` each time the application needs to initiate an asynchronous task.
 - To abstract thread management from the rest of your application, pass the application's tasks to an *executor*.
@@ -41,7 +41,7 @@ This section documents the use of `Thread` objects. Executors are discussed with
 
 An application that creates an instance of `Thread` must provide the code that will run in that thread. There are two ways to do this:
 
-- *Provide a `Runnable` object*. The [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) interface defines a single method, `run`, meant to contain the code executed in the thread. The `Runnable` object is passed to the `Thread` constructor, as in the [HelloRunnable](http://docs.oracle.com/javase/tutorial/essential/concurrency/examples/HelloRunnable.java) example:
+- *Provide a `Runnable` object*. The `Runnable` interface defines a single method, `run`, meant to contain the code executed in the thread. The `Runnable` object is passed to the `Thread` constructor, as in the `HelloRunnable` example:
 
   ```java
   public class HelloRunnable implements Runnable {
@@ -57,7 +57,7 @@ An application that creates an instance of `Thread` must provide the code that w
   }
   ```
 
-- *Subclass `Thread`*. The `Thread` class itself implements `Runnable`, though its `run` method does nothing. An application can subclass `Thread`, providing its own implementation of `run`, as in the [HelloThrea](http://docs.oracle.com/javase/tutorial/essential/concurrency/examples/HelloThread.java) example:
+- *Subclass `Thread`*. The `Thread` class itself implements `Runnable`, though its `run` method does nothing. An application can subclass `Thread`, providing its own implementation of `run`, as in the `HelloThread` example:
 
   ```java
   public class HelloThread extends Thread {
@@ -116,7 +116,7 @@ Notice that `main` declares that it throws `InterruptedException`. This is an ex
 
 An *interrupt* is an indication to a thread that it should stop what it is doing and do something else. It's up to the programmer to decide exactly how a thread responds to an interrupt, but it is very common for the thread to terminate. This is the usage emphasized in this lesson.
 
-A thread sends an interrupt by invoking [interrupt](https://docs.oracle.com/javase/8/docs/api/java/lang/Thread.html#interrupt--) on the `Thread` object for the thread to be interrupted. For the interrupt mechanism to work correctly, the interrupted thread must support its own interruption.
+A thread sends an interrupt by invoking `interrupt` on the `Thread` object for the thread to be interrupted. For the interrupt mechanism to work correctly, the interrupted thread must support its own interruption.
 
 #### Supporting Interruption
 
@@ -180,7 +180,7 @@ Like `sleep`, `join` responds to an interrupt by exiting with an `InterruptedExc
 
 ### The SimpleThreads Example
 
-The following example brings together some of the concepts of this section. [SimpleThreads](http://docs.oracle.com/javase/tutorial/essential/concurrency/examples/SimpleThreads.java) consists of two threads. The first is the main thread that every Java application has. The main thread creates a new thread from the `Runnable` object, `MessageLoop`, and waits for it to finish. If the `MessageLoop` thread takes too long to finish, the main thread interrupts it.
+The following example brings together some of the concepts of this section. `SimpleThreads` consists of two threads. The first is the main thread that every Java application has. The main thread creates a new thread from the `Runnable` object, `MessageLoop`, and waits for it to finish. If the `MessageLoop` thread takes too long to finish, the main thread interrupts it.
 
 The `MessageLoop` thread prints out a series of messages. If interrupted before it has printed all its messages, the `MessageLoop` thread prints a message and exits.
 
@@ -360,7 +360,7 @@ We've already seen two actions that create happens-before relationships.
 - When a statement invokes `Thread.start`, every statement that has a happens-before relationship with that statement also has a happens-before relationship with every statement executed by the new thread. The effects of the code that led up to the creation of the new thread are visible to the new thread.
 - When a thread terminates and causes a `Thread.join` in another thread to return, then all the statements executed by the terminated thread have a happens-before relationship with all the statements following the successful join. The effects of the code in the thread are now visible to the thread that performed the join.
 
-For a list of actions that create happens-before relationships, refer to the [Summary page of the java.util.concurrent package](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/package-summary.html#MemoryVisibility).
+For a list of actions that create happens-before relationships, refer to the Summary page of the `java.util.concurrent` package.
 
 ### Synchronized Methods
 
@@ -551,7 +551,7 @@ public void guardedJoy() {
     System.out.println("Joy has been achieved!");
 }
 ```
-A more efficient guard invokes [Object.wait](https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#wait--) to suspend the current thread. The invocation of `wait` does not return until another thread has issued a notification that some special event may have occurred -- though not necessarily the event this thread is waiting for:
+A more efficient guard invokes `Object.wait` to suspend the current thread. The invocation of `wait` does not return until another thread has issued a notification that some special event may have occurred -- though not necessarily the event this thread is waiting for:
 
 ```java
 public synchronized void guardedJoy() {
@@ -576,7 +576,7 @@ Like many methods that suspend execution, `wait` can throw `InterruptedException
 
 Why is this version of `guardedJoy` synchronized? Suppose `d` is the object we're using to invoke `wait`. When a thread invokes `d.wait`, it must own the intrinsic lock for `d` -- otherwise an error is thrown. Invoking `wait` inside a synchronized method is a simple way to acquire the intrinsic lock.
 
-When `wait` is invoked, the thread releases the lock and suspends execution. At some future time, another thread will acquire the same lock and invoke [Object.notifyAll](https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#notifyAll--), informing all threads waiting on that lock that something important has happened:
+When `wait` is invoked, the thread releases the lock and suspends execution. At some future time, another thread will acquire the same lock and invoke `Object.notifyAll`, informing all threads waiting on that lock that something important has happened:
 
 ```java
 public synchronized notifyJoy() {
@@ -883,4 +883,401 @@ final public class ImmutableRGB {
 }
 ```
 
+### High Level Concurrency Objects
 
+So far, this lesson has focused on the low-level APIs that have been part of the Java platform from the very beginning. These APIs are adequate for very basic tasks, but higher-level building blocks are needed for more advanced tasks. This is especially true for massively concurrent applications that fully exploit today's multiprocessor and multi-core systems.
+
+In this section we'll look at some of the high-level concurrency features introduced with version 5.0 of the Java platform. Most of these features are implemented in the new `java.util.concurrent` packages. There are also new concurrent data structures in the Java Collections Framework.
+
+- [Lock objects](#lock-objects) support locking idioms that simplify many concurrent applications.
+- [Executors](#executors) define a high-level API for launching and managing threads. Executor implementations provided by `java.util.concurrent` provide thread pool management suitable for large-scale applications.
+- [Concurrent collections](#concurrent-collections) make it easier to manage large collections of data, and can greatly reduce the need for synchronization.
+- [Atomic variables](#atomic-variables) have features that minimize synchronization and help avoid memory consistency errors.
+- [ThreadLocalRandom](#concurrent-random-numbers) (in JDK 7) provides efficient generation of pseudorandom numbers from multiple threads.
+
+#### Lock Objects
+
+Synchronized code relies on a simple kind of reentrant lock. This kind of lock is easy to use, but has many limitations. More sophisticated locking idioms are supported by the java.util.concurrent.locks package. We won't examine this package in detail, but instead will focus on its most basic interface, `Lock`.
+
+`Lock` objects work very much like the implicit locks used by synchronized code. As with implicit locks, only one thread can own a `Lock` object at a time. `Lock` objects also support a `wait/notify` mechanism, through their associated `Condition` objects.
+
+The biggest advantage of `Lock` objects over implicit locks is their ability to back out of an attempt to acquire a lock. The `tryLock` method backs out if the lock is not available immediately or before a timeout expires (if specified). The `lockInterruptibly` method backs out if another thread sends an interrupt before the lock is acquired.
+
+Let's use `Lock` objects to solve the deadlock problem we saw in [Liveness](#liveness). Alphonse and Gaston have trained themselves to notice when a friend is about to bow. We model this improvement by requiring that our `Friend` objects must acquire locks for *both* participants before proceeding with the bow. Here is the source code for the improved model, `Safelock`. To demonstrate the versatility of this idiom, we assume that Alphonse and Gaston are so infatuated with their newfound ability to bow safely that they can't stop bowing to each other:
+
+```java
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.Random;
+
+public class Safelock {
+    static class Friend {
+        private final String name;
+        private final Lock lock = new ReentrantLock();
+
+        public Friend(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return this.name;
+        }
+
+        public boolean impendingBow(Friend bower) {
+            Boolean myLock = false;
+            Boolean yourLock = false;
+            try {
+                myLock = lock.tryLock();
+                yourLock = bower.lock.tryLock();
+            } finally {
+                if (! (myLock && yourLock)) {
+                    if (myLock) {
+                        lock.unlock();
+                    }
+                    if (yourLock) {
+                        bower.lock.unlock();
+                    }
+                }
+            }
+            return myLock && yourLock;
+        }
+            
+        public void bow(Friend bower) {
+            if (impendingBow(bower)) {
+                try {
+                    System.out.format("%s: %s has"
+                        + " bowed to me!%n", 
+                        this.name, bower.getName());
+                    bower.bowBack(this);
+                } finally {
+                    lock.unlock();
+                    bower.lock.unlock();
+                }
+            } else {
+                System.out.format("%s: %s started"
+                    + " to bow to me, but saw that"
+                    + " I was already bowing to"
+                    + " him.%n",
+                    this.name, bower.getName());
+            }
+        }
+
+        public void bowBack(Friend bower) {
+            System.out.format("%s: %s has" +
+                " bowed back to me!%n",
+                this.name, bower.getName());
+        }
+    }
+
+    static class BowLoop implements Runnable {
+        private Friend bower;
+        private Friend bowee;
+
+        public BowLoop(Friend bower, Friend bowee) {
+            this.bower = bower;
+            this.bowee = bowee;
+        }
+    
+        public void run() {
+            Random random = new Random();
+            for (;;) {
+                try {
+                    Thread.sleep(random.nextInt(10));
+                } catch (InterruptedException e) {}
+                bowee.bow(bower);
+            }
+        }
+    }
+            
+
+    public static void main(String[] args) {
+        final Friend alphonse =
+            new Friend("Alphonse");
+        final Friend gaston =
+            new Friend("Gaston");
+        new Thread(new BowLoop(alphonse, gaston)).start();
+        new Thread(new BowLoop(gaston, alphonse)).start();
+    }
+}
+```
+
+### Executors
+
+In all of the previous examples, there's a close connection between the task being done by a new thread, as defined by its `Runnable` object, and the thread itself, as defined by a `Thread` object. This works well for small applications, but in large-scale applications, it makes sense to separate thread management and creation from the rest of the application. Objects that encapsulate these functions are known as *executors*. The following subsections describe executors in detail.
+
+- [Executor Interfaces](#executor-interfaces) define the three executor object types.
+- [Thread Pools](#thread-pools) are the most common kind of executor implementation.
+- [Fork/Join](#fork-join) is a framework (new in JDK 7) for taking advantage of multiple processors.
+
+#### Executor Interfaces
+
+The `java.util.concurrent` package defines three executor interfaces:
+
+- `Executor`, a simple interface that supports launching new tasks.
+- `ExecutorService`, a subinterface of `Executor`, which adds features that help manage the lifecycle, both of the individual tasks and of the executor itself.
+- `ScheduledExecutorService`, a subinterface of `ExecutorService`, supports future and/or periodic execution of tasks.
+
+Typically, variables that refer to executor objects are declared as one of these three interface types, not with an executor class type.
+
+**The `Executor` Interface**
+
+The `Executor` interface provides a single method, `execute`, designed to be a drop-in replacement for a common thread-creation idiom. If `r` is a `Runnable` object, and `e` is an `Executor` object you can replace
+
+```java
+(new Thread(r)).start();
+```
+
+with
+
+```java
+e.execute(r);
+```
+
+However, the definition of `execute` is less specific. The low-level idiom creates a new thread and launches it immediately. Depending on the `Executor` implementation, `execute` may do the same thing, but is more likely to use an existing worker thread to run `r`, or to place `r` in a queue to wait for a worker thread to become available. (We'll describe worker threads in the section on [Thread Pools](#thread-pools).)
+
+**The `ExecutorService` Interface**
+
+The `ExecutorService` interface supplements `execute` with a similar, but more versatile `submit` method. Like `execute`, `submit` accepts `Runnable` objects, but also accepts `Callable` objects, which allow the task to return a value. The `submit` method returns a `Future` object, which is used to retrieve the `Callable` return value and to manage the status of both `Callable` and `Runnable` tasks.
+
+`ExecutorService` also provides methods for submitting large collections of `Callable` objects. Finally, `ExecutorService` provides a number of methods for managing the shutdown of the executor. To support immediate shutdown, tasks should handle [interrupts](#interrupts) correctly.
+
+**The `ScheduledExecutorService` Interface**
+
+The `ScheduledExecutorService` interface supplements the methods of its parent `ExecutorService` with `schedule`, which executes a `Runnable` or `Callable` task after a specified delay. In addition, the interface defines `scheduleAtFixedRate` and `scheduleWithFixedDelay`, which executes specified tasks repeatedly, at defined intervals.
+
+#### Thread Pools
+
+Most of the executor implementations in `java.util.concurrent` use *thread pools*, which consist of *worker threads*. This kind of thread exists separately from the `Runnable` and `Callable` tasks it executes and is often used to execute multiple tasks.
+
+Using worker threads minimizes the overhead due to thread creation. Thread objects use a significant amount of memory, and in a large-scale application, allocating and deallocating many thread objects creates a significant memory management overhead.
+
+One common type of thread pool is the *fixed thread pool*. This type of pool always has a specified number of threads running; if a thread is somehow terminated while it is still in use, it is automatically replaced with a new thread. Tasks are submitted to the pool via an internal queue, which holds extra tasks whenever there are more active tasks than threads.
+
+An important advantage of the fixed thread pool is that applications using it *degrade gracefully*. To understand this, consider a web server application where each HTTP request is handled by a separate thread. If the application simply creates a new thread for every new HTTP request, and the system receives more requests than it can handle immediately, the application will suddenly stop responding to *all* requests when the overhead of all those threads exceed the capacity of the system. With a limit on the number of the threads that can be created, the application will not be servicing HTTP requests as quickly as they come in, but it will be servicing them as quickly as the system can sustain.
+
+A simple way to create an executor that uses a fixed thread pool is to invoke the `newFixedThreadPool` factory method in `java.util.concurrent.Executors`. This class also provides the following factory methods:
+
+- The `newCachedThreadPool` method creates an executor with an expandable thread pool. This executor is suitable for applications that launch many short-lived tasks.
+- The `newSingleThreadExecutor` method creates an executor that executes a single task at a time.
+- Several factory methods are `ScheduledExecutorService` versions of the above executors.
+
+If none of the executors provided by the above factory methods meet your needs, constructing instances of `java.util.concurrent.ThreadPoolExecutor` or `java.util.concurrent.ScheduledThreadPoolExecutor` will give you additional options.
+
+#### Fork/Join
+
+The fork/join framework is an implementation of the `ExecutorService` interface that helps you take advantage of multiple processors. It is designed for work that can be broken into smaller pieces recursively. The goal is to use all the available processing power to enhance the performance of your application.
+
+As with any `ExecutorService` implementation, the fork/join framework distributes tasks to worker threads in a thread pool. The fork/join framework is distinct because it uses a work-stealing algorithm. Worker threads that run out of things to do can steal tasks from other threads that are still busy.
+
+The center of the fork/join framework is the `ForkJoinPool` class, an extension of the `AbstractExecutorService` class. `ForkJoinPool` implements the core work-stealing algorithm and can execute `ForkJoinTask` processes.
+
+**Basic Use**
+
+The first step for using the fork/join framework is to write code that performs a segment of the work. Your code should look similar to the following pseudocode:
+
+```
+if (my portion of the work is small enough)
+  do the work directly
+else
+  split my work into two pieces
+  invoke the two pieces and wait for the results
+```
+
+Wrap this code in a `ForkJoinTask` subclass, typically using one of its more specialized types, either `RecursiveTask` (which can return a result) or `RecursiveAction`.
+
+After your `ForkJoinTask` subclass is ready, create the object that represents all the work to be done and pass it to the `invoke()` method of a `ForkJoinPool` instance.
+
+**Blurring for Clarity**
+
+To help you understand how the fork/join framework works, consider the following example. Suppose that you want to blur an image. The original source image is represented by an array of integers, where each integer contains the color values for a single pixel. The blurred *destination* image is also represented by an integer array with the same size as the source.
+
+Performing the blur is accomplished by working through the source array one pixel at a time. Each pixel is averaged with its surrounding pixels (the red, green, and blue components are averaged), and the result is placed in the destination array. Since an image is a large array, this process can take a long time. You can take advantage of concurrent processing on multiprocessor systems by implementing the algorithm using the fork/join framework. Here is one possible implementation:
+
+```java
+public class ForkBlur extends RecursiveAction {
+    private int[] mSource;
+    private int mStart;
+    private int mLength;
+    private int[] mDestination;
+  
+    // Processing window size; should be odd.
+    private int mBlurWidth = 15;
+  
+    public ForkBlur(int[] src, int start, int length, int[] dst) {
+        mSource = src;
+        mStart = start;
+        mLength = length;
+        mDestination = dst;
+    }
+
+    protected void computeDirectly() {
+        int sidePixels = (mBlurWidth - 1) / 2;
+        for (int index = mStart; index < mStart + mLength; index++) {
+            // Calculate average.
+            float rt = 0, gt = 0, bt = 0;
+            for (int mi = -sidePixels; mi <= sidePixels; mi++) {
+                int mindex = Math.min(Math.max(mi + index, 0),
+                                    mSource.length - 1);
+                int pixel = mSource[mindex];
+                rt += (float)((pixel & 0x00ff0000) >> 16)
+                      / mBlurWidth;
+                gt += (float)((pixel & 0x0000ff00) >>  8)
+                      / mBlurWidth;
+                bt += (float)((pixel & 0x000000ff) >>  0)
+                      / mBlurWidth;
+            }
+          
+            // Reassemble destination pixel.
+            int dpixel = (0xff000000     ) |
+                   (((int)rt) << 16) |
+                   (((int)gt) <<  8) |
+                   (((int)bt) <<  0);
+            mDestination[index] = dpixel;
+        }
+    }
+  
+  ...
+```
+
+Now you implement the abstract `compute()` method, which either performs the blur directly or splits it into two smaller tasks. A simple array length threshold helps determine whether the work is performed or split.
+
+```java
+protected static int sThreshold = 100000;
+
+protected void compute() {
+    if (mLength < sThreshold) {
+        computeDirectly();
+        return;
+    }
+    
+    int split = mLength / 2;
+    
+    invokeAll(new ForkBlur(mSource, mStart, split, mDestination),
+              new ForkBlur(mSource, mStart + split, mLength - split,
+                           mDestination));
+}
+```
+
+If the previous methods are in a subclass of the `RecursiveAction` class, then setting up the task to run in a `ForkJoinPool` is straightforward, and involves the following steps:
+
+1. Create a task that represents all of the work to be done.
+   ```java
+   ForkBlur fb = new ForkBlur(src, 0, src.length, dst);
+   // source image pixels are in src
+   // destination image pixels are in dst
+   ```
+2. Create the `ForkJoinPool` that will run the task.
+   ```java
+   ForkJoinPool pool = new ForkJoinPool();
+   ```
+3. Run the task.
+   ```java
+   pool.invoke(fb);
+   ```
+
+For the full source code, including some extra code that creates the destination image file, see the `ForkBlur` example.
+
+**Standard Implementations**
+
+Besides using the fork/join framework to implement custom algorithms for tasks to be performed concurrently on a multiprocessor system (such as the `ForkBlur.java` example in the previous section), there are some generally useful features in Java SE which are already implemented using the fork/join framework. One such implementation, introduced in Java SE 8, is used by the `java.util.Arrays` class for its `parallelSort()` methods. These methods are similar to `sort()`, but leverage concurrency via the fork/join framework. Parallel sorting of large arrays is faster than sequential sorting when run on multiprocessor systems. However, how exactly the fork/join framework is leveraged by these methods is outside the scope of the Java Tutorials. For this information, see the Java API documentation.
+
+Another implementation of the fork/join framework is used by methods in the `java.util.streams` package, which is part of [Project Lambda](http://openjdk.java.net/projects/lambda/) scheduled for the Java SE 8 release. For more information, see the [Lambda Expressions](http://docs.oracle.com/javase/tutorial/java/javaOO/lambdaexpressions.html) section.
+
+### Concurrent Collections
+
+The `java.util.concurrent` package includes a number of additions to the Java Collections Framework. These are most easily categorized by the collection interfaces provided:
+
+- `BlockingQueue` defines a first-in-first-out data structure that blocks or times out when you attempt to add to a full queue, or retrieve from an empty queue.
+- `ConcurrentMap` is a subinterface of `java.util.Map` that defines useful atomic operations. These operations remove or replace a key-value pair only if the key is present, or add a key-value pair only if the key is absent. Making these operations atomic helps avoid synchronization. The standard general-purpose implementation of `ConcurrentMap` is `ConcurrentHashMap`, which is a concurrent analog of `HashMap`.
+- `ConcurrentNavigableMap` is a subinterface of `ConcurrentMap` that supports approximate matches. The standard general-purpose implementation of `ConcurrentNavigableMap` is `ConcurrentSkipListMap`, which is a concurrent analog of `TreeMap`.
+
+All of these collections help avoid [Memory Consistency Errors](#memory-consistency-errors) by defining a happens-before relationship between an operation that adds an object to the collection with subsequent operations that access or remove that object.
+
+### Atomic Variables
+
+The `java.util.concurrent.atomic` package defines classes that support atomic operations on single variables. All classes have `get` and `set` methods that work like reads and writes on `volatile` variables. That is, a `set` has a happens-before relationship with any subsequent `get` on the same variable. The atomic `compareAndSet` method also has these memory consistency features, as do the simple atomic arithmetic methods that apply to integer atomic variables.
+
+To see how this package might be used, let's return to the `Counter` class we originally used to demonstrate thread interference:
+
+```java
+class Counter {
+    private int c = 0;
+
+    public void increment() {
+        c++;
+    }
+
+    public void decrement() {
+        c--;
+    }
+
+    public int value() {
+        return c;
+    }
+
+}
+```
+
+One way to make `Counter` safe from thread interference is to make its methods synchronized, as in `SynchronizedCounter`:
+
+```java
+class SynchronizedCounter {
+    private int c = 0;
+
+    public synchronized void increment() {
+        c++;
+    }
+
+    public synchronized void decrement() {
+        c--;
+    }
+
+    public synchronized int value() {
+        return c;
+    }
+
+}
+```
+
+For this simple class, synchronization is an acceptable solution. But for a more complicated class, we might want to avoid the liveness impact of unnecessary synchronization. Replacing the `int` field with an `AtomicInteger` allows us to prevent thread interference without resorting to synchronization, as in `AtomicCounter`:
+
+```java
+import java.util.concurrent.atomic.AtomicInteger;
+
+class AtomicCounter {
+    private AtomicInteger c = new AtomicInteger(0);
+
+    public void increment() {
+        c.incrementAndGet();
+    }
+
+    public void decrement() {
+        c.decrementAndGet();
+    }
+
+    public int value() {
+        return c.get();
+    }
+
+}
+```
+
+### Concurrent Random Numbers
+
+In JDK 7, `java.util.concurrent` includes a convenience class, `ThreadLocalRandom`, for applications that expect to use random numbers from multiple threads or `ForkJoinTasks`.
+
+For concurrent access, using `ThreadLocalRandom` instead of `Math.random()` results in less contention and, ultimately, better performance.
+
+All you need to do is call `ThreadLocalRandom.current()`, then call one of its methods to retrieve a random number. Here is one example:
+
+```java
+int r = ThreadLocalRandom.current() .nextInt(4, 77);
+```
+
+## For Further Reading
+
+- *Concurrent Programming in Java: Design Principles and Pattern (2nd Edition)* by Doug Lea. A comprehensive work by a leading expert, who's also the architect of the Java platform's concurrency framework.
+- *Java Concurrency in Practice* by Brian Goetz, Tim Peierls, Joshua Bloch, Joseph Bowbeer, David Holmes, and Doug Lea. A practical guide designed to be accessible to the novice.
+- *Effective Java Programming Language Guide (2nd Edition)* by Joshua Bloch. Though this is a general programming guide, its chapter on threads contains essential "best practices" for concurrent programming.
+- *Concurrency: State Models & Java Programs (2nd Edition)*, by Jeff Magee and Jeff Kramer. An introduction to concurrent programming through a combination of modeling and practical examples.
+- [Java Concurrent Animated](http://sourceforge.net/projects/javaconcurrenta/): Animations that show usage of concurrency features.
