@@ -1007,7 +1007,7 @@ In all of the previous examples, there's a close connection between the task bei
 
 - [Executor Interfaces](#executor-interfaces) define the three executor object types.
 - [Thread Pools](#thread-pools) are the most common kind of executor implementation.
-- [Fork/Join](#fork-join) is a framework (new in JDK 7) for taking advantage of multiple processors.
+- [Fork/Join](#forkjoin) is a framework (new in JDK 7) for taking advantage of multiple processors.
 
 #### Executor Interfaces
 
