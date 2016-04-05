@@ -44,7 +44,7 @@ Programs use *byte streams* to perform input and output of 8-bit bytes. All byte
 
 There are many byte stream classes. To demonstrate how byte streams work, we'll focus on the file I/O byte streams, `FileInputStream` and `FileOutputStream`. Other kinds of byte streams are used in much the same way; they differ mainly in the way they are constructed.
 
-** Using Byte Streams**
+**Using Byte Streams**
 
 We'll explore `FileInputStream` and `FileOutputStream` by examining an example program named `CopyBytes`, which uses byte streams to copy `xanadu.txt`, one byte at a time.
 
@@ -538,7 +538,7 @@ Data streams support binary I/O of primitive data type values (`boolean`, `char`
 
 The `DataStreams` example demonstrates data streams by writing out a set of data records, and then reading them in again. Each record consists of three values related to an item on an invoice, as shown in the following table:
 
-<table border="1" cellspacing="2" cellpadding="0" summary="table showing records in DataStreams example">
+<table cellspacing="2" cellpadding="0">
 <tr>
 <th id="h1">Order in record</th>
 <th id="h2">Data type</th>
@@ -805,8 +805,7 @@ System.out.format("getRoot: %s%n", path.getRoot());
 
 Here is the output for both Windows and the Solaris OS:
 
-<table border="1" cellspacing="2" cellpadding="0" summary="This table shows the output for various Path methods for
-       Microsoft Windows and Solaris and includes comments about the methods">
+<table cellspacing="2" cellpadding="0">
 <tr>
 <th id="h1">Method Invoked</th>
 <th id="h2">Returns in the Solaris OS</th>
@@ -869,9 +868,7 @@ Path path = Paths.get("sally\\bar");
 
 Here is the output for Windows and the Solaris OS:
 
-<table border="1" summary="This table shows the output for various Path methods for
-the Solaris OS and Microsoft Windows, this time using a relative path.
-cellspacing=" cellpadding="0">
+<table cellpadding="0">
 <tr>
 <th id="h101">Method Invoked</th>
 <th id="h102">Returns in the Solaris OS</th>
@@ -1339,7 +1336,7 @@ The definition of *metadata* is "data about other data." With a file system, the
 
 A file system's metadata is typically referred to as its *file attributes*. The `Files` class includes methods that can be used to obtain a single attribute of a file, or to set an attribute.
 
-<table border="1" cellspacing="2" cellpadding="4" summary="This table shows some methods for the Files class">
+<table cellspacing="2" cellpadding="4">
 <tr>
 <th id="h1">Methods</th>
 <th id="h2">Comment</th>
@@ -1387,7 +1384,7 @@ A file system's metadata is typically referred to as its *file attributes*. The 
 
 If a program needs multiple file attributes around the same time, it can be inefficient to use methods that retrieve a single attribute. Repeatedly accessing the file system to retrieve a single attribute can adversely affect performance. For this reason, the `Files` class provides two `readAttributes` methods to fetch a file's attributes in one bulk operation.
 
-<table border="1" cellspacing="2" cellpadding="4" summary="This table shows some the readAttributes methods for the Files class">
+<table cellspacing="2" cellpadding="4">
 <tr>
 <th id="h101">Method</th>
 <th id="h102">Comment</th>
@@ -1881,8 +1878,7 @@ The first method allows the code to specify a directory for the temporary file a
 try {
     Path tempFile = Files.createTempFile(null, ".myapp");
     System.out.format("The temporary file" +
-        " has been created: %s%n", tempFile)
-;
+        " has been created: %s%n", tempFile);
 } catch (IOException x) {
     System.err.format("IOException: %s%n", x);
 }
@@ -2662,6 +2658,7 @@ for (;;) {
         break;
     }
 }
+```
 
 **Retrieving the File Name**
 
@@ -2818,8 +2815,7 @@ Because the Java implementation of file I/O has been completely re-architected i
 
 There is no one-to-one correspondence between the two APIs, but the following table gives you a general idea of what functionality in the `java.io.File` API maps to in the `java.nio.file` API and tells you where you can obtain more information.
 
-<table border="1" cellspacing="2" cellpadding="0" summary="This table shows what the java.io.File functionality maps
-       to in the java.nio.file package introduced in Java SE 7">
+<table cellspacing="2" cellpadding="0">
 <tr>
 <th id="h1">java.io.File Functionality</th>
 <th id="h2">java.nio.file Functionality</th>
