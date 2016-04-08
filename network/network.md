@@ -1392,7 +1392,7 @@ public class ListNetsEx {
                     Arrays.toString(netint.getHardwareAddress()));
         out.printf("MTU: %s\n", netint.getMTU());
         out.printf("\n");
-     }
+    }
 }
 ```
 
