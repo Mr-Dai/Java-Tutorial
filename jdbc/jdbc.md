@@ -367,3 +367,581 @@ public class UpdateCar {
 Databases store user data, and they also store information about the database itself. Most DBMSs have a set of system tables, which list tables in the database, column names in each table, primary keys, foreign keys, stored procedures, and so forth. Each DBMS has its own functions for getting information about table layouts and database features. JDBC provides the interface `DatabaseMetaData`, which a driver writer must implement so that its methods return information about the driver and/or DBMS for which the driver is written. For example, a large number of methods return whether or not the driver supports a particular functionality. This interface gives users and tools a standardized way to get metadata.
 
 In general, developers writing tools and drivers are the ones most likely to be concerned with metadata.
+
+## JDBC Basics
+
+In this lesson you will learn the basics of the JDBC API.
+
+- [Getting Started](#getting-started) sets up a basic database development environment and shows you how to compile and run the JDBC tutorial samples.
+- [Processing SQL Statements with JDBC](#processing-sql-statements-with-jdbc) outlines the steps required to process any SQL statement. The pages that follow describe these steps in more detail:
+  + [Establishing a Connection](#establishing-a-connection) connects you to your database.
+  + [Connecting with DataSource Objects](#connecting-with-datasource-objects) shows you how to connect to your database with `DataSource` objects, the preferred way of getting a connection to a data source.
+  + [Handling SQLExceptions](#handling-sqlexceptions) shows you how to handle exceptions caused by database errors.
+  + [Setting Up Tables](#setting-up-tables) describes all the database tables used in the JDBC tutorial samples and how to create and populate tables with JDBC API and SQL scripts.
+  + [Retrieving and Modifying Values from Result Sets](#retrieving-and-modifying-values-from-result-sets) develop the process of configuring your database, sending queries, and retrieving data from your database.
+  + [Using Prepared Statements](#using-prepared-statements) describes a more flexible way to create database queries.
+  + [Using Transactions](#using-transactions) shows you how to control when a database query is actually executed.
+- [Using RowSet Objects](#using-rowset-objects) introduces you to `RowSet` objects; these are objects that hold tabular data in a way that make it more flexible and easier to use than result sets. The pages that follow describe the different kinds of `RowSet` objects available:
+  + [Using JdbcRowSet Objects](#using-jdbcrowset-objects)
+  + [Using CachedRowSet Objects](#using-cachedrowset-objects)
+  + [Using JoinRowSet Objects](#using-joinrowset-objects)
+  + [Using FilteredRowSet Objects](#using-filteredrowset-objects)
+  + [Using WebRowSet Objects](#using-webrowset-objects)
+- [Using Advanced Data Types](#using-advanced-data-types) introduces you to other data types; the pages that follow describe these data types in further detail:
+  + [Using Large Objects](#using-large-objects)
+  + [Using SQLXML Objects](#using-sqlxml-objects)
+  + [Using Array Objects](#using-array-objects)
+  + [Using DISTINCT Data Type](#using-distinct-data-type)
+  + [Using Structured Objects](#using-structured-objects)
+  + [Using Customized Type Mappings](#using-customized-type-mappings)
+  + [Using Datalink Objects](#using-datalink-objects)
+  + [Using RowId Objects](#using-rowid-objects)
+- [Using Stored Procedures](#using-stored-procedures) shows you how to create and use a stored procedure, which is a group of SQL statements that can be called like a Java method with variable input and output parameters.
+- [Using JDBC with GUI API](#using-jdbc-with-gui-api) demonstrates how to integrate JDBC with the Swing API.
+
+### Getting Started
+
+The sample code that comes with this tutorial creates a database that is used by a proprietor of a small coffee house called The Coffee Break, where coffee beans are sold by the pound and brewed coffee is sold by the cup.
+
+The following steps configure a JDBC development environment with which you can compile and run the tutorial samples:
+
+ 1. Install the latest version of the Java SE SDK on your computer
+ 2. Install your database management system (DBMS) if needed
+ 3. Install a JDBC driver from the vendor of your database
+ 4. Install Apache Ant
+ 5. Install Apache Xalan
+ 6. Download the sample code
+ 7. Modify the `build.xml` file
+ 8. Modify the tutorial properties file
+ 9. Compile and package the samples
+10. Create databases, tables, and populate tables
+11. Run the samples
+
+**Install the latest version of the Java SE SDK on your computer**
+
+Install the latest version of the Java SE SDK on your computer.
+
+Ensure that the full directory path of the Java SE SDK `bin` directory is in your `PATH` environment variable so that you can run the Java compiler and the Java application launcher from any directory.
+
+**Install your database management system (DBMS) if needed**
+
+You may use Java DB, which comes with the latest version of Java SE SDK. This tutorial has been tested for the following DBMS:
+
+- [Java DB](http://www.oracle.com/technetwork/java/javadb/overview/index.html)
+- [MySQL](http://www.mysql.com/)
+
+Note that if you are using another DBMS, you might have to alter the code of the tutorial samples.
+
+**Install a JDBC driver from the vendor of your database**
+
+If you are using Java DB, it already comes with a JDBC driver. If you are using MySQL, install the latest version of [Connector/J](http://www.mysql.com/products/connector/).
+
+Contact the vendor of your database to obtain a JDBC driver for your DBMS.
+
+There are many possible implementations of JDBC drivers. These implementations are categorized as follows:
+
+- **Type 1**: Drivers that implement the JDBC API as a mapping to another data access API, such as ODBC (Open Database Connectivity). Drivers of this type are generally dependent on a native library, which limits their portability. The JDBC-ODBC Bridge is an example of a Type 1 driver.
+  **Note**: The JDBC-ODBC Bridge should be considered a transitional solution. It is not supported by Oracle. Consider using this only if your DBMS does not offer a Java-only JDBC driver.
+- **Type 2**: Drivers that are written partly in the Java programming language and partly in native code. These drivers use a native client library specific to the data source to which they connect. Again, because of the native code, their portability is limited. Oracle's OCI (Oracle Call Interface) client-side driver is an example of a Type 2 driver.
+- **Type 3**: Drivers that use a pure Java client and communicate with a middleware server using a database-independent protocol. The middleware server then communicates the client's requests to the data source.
+- **Type 4**: Drivers that are pure Java and implement the network protocol for a specific data source. The client connects directly to the data source.
+
+Check which driver types comes with your DBMS. Java DB comes with two Type 4 drivers, an Embedded driver and a Network Client Driver. MySQL Connector/J is a Type 4 driver.
+
+Installing a JDBC driver generally consists of copying the driver to your computer, then adding the location of it to your class path. In addition, many JDBC drivers other than Type 4 drivers require you to install a client-side API. No other special configuration is usually needed.
+
+**Install Apache Ant**
+
+These steps use Apache Ant, a Java-based tool, to build, compile, and run the JDBC tutorial samples. Go to the following link to download Apache Ant:
+
+[http://ant.apache.org/](http://ant.apache.org/)
+
+Ensure that the Apache Ant executable file is in your PATH environment variable so that you can run it from any directory.
+
+**Install Apache Xalan**
+
+The sample `RSSFeedsTable.java`, which is described in [Using SQLXML Objects](#using-sqlxml-objects), requires Apache Xalan if your DBMS is Java DB. The sample uses Apache Xalan-Java. Go to the following link to download it:
+
+[http://xml.apache.org/xalan-j/](http://xml.apache.org/xalan-j/)
+
+**Download the sample code**
+
+The sample code, [JDBCTutorial.zip](http://docs.oracle.com/javase/tutorial/jdbc/basics/examples/zipfiles/JDBCTutorial.zip), consists of the following files:
+
+- properties
+  + javadb-build-properties.xml
+  + javadb-sample-properties.xml
+  + mysql-build-properties.xml
+  + mysql-sample-properties.xml
+- sql
+  + javadb
+    - create-procedures.sql
+    - create-tables.sql
+    - drop-tables.sql
+    - populate-tables.sql
+  + mysql
+    - create-procedures.sql
+    - create-tables.sql
+    - drop-tables.sql
+    - populate-tables.sql
+- src/com/oracle/tutorial/jdbc
+  + CachedRowSetSample.java
+  + CityFilter.java
+  + ClobSample.java
+  + CoffeesFrame.java
+  + CoffeesTable.java
+  + CoffeesTableModel.java
+  + DatalinkSample.java
+  + ExampleRowSetListener.java
+  + FilteredRowSetSample.java
+  + JdbcRowSetSample.java
+  + JDBCTutorialUtilities.java
+  + JoinSample.java
+  + ProductInformationTable.java
+  + RSSFeedsTable.java
+  + StateFilter.java
+  + StoredProcedureJavaDBSample.java
+  + StoredProcedureMySQLSample.java
+  + SuppliersTable.java
+  + WebRowSetSample.java
+- txt
+  + colombian-description.txt
+- xml
+  + rss-coffee-industry-news.xml
+  + rss-the-coffee-break-blog.xml
+- build.xml
+
+Create a directory to contain all the files of the sample. These steps refer to this directory as *`<JDBC tutorial directory>`*. Unzip the contents of `JDBCTutorial.zip` into *`<JDBC tutorial directory>`*.
+
+**Modify the build.xml file**
+
+The `build.xml` file is the build file that Apache Ant uses to compile and execute the JDBC samples. The files `properties/javadb-build-properties.xml` and `properties/mysql-build-properties.xml` contain additional Apache Ant properties required for Java DB and MySQL, respectively. The files `properties/javadb-sample-properties.xml` and `properties/mysql-sample-properties.xml` contain properties required by the sample.
+
+Modify these XML files as follows:
+
+In the `build.xml` file, modify the property `ANTPROPERTIES` to refer to either `properties/javadb-build-properties.xml` or `properties/mysql-build-properties.xml`, depending on your DBMS. For example, if you are using Java DB, your `build.xml` file would contain this:
+
+```xml
+<property
+  name="ANTPROPERTIES"
+  value="properties/javadb-build-properties.xml"/>
+
+  <import file="${ANTPROPERTIES}"/>
+```
+
+Similarly, if you are using MySQL, your `build.xml` file would contain this:
+
+```xml
+<property
+  name="ANTPROPERTIES"
+  value="properties/mysql-build-properties.xml"/>
+
+  <import file="${ANTPROPERTIES}"/>
+```
+
+In the `properties/javadb-build-properties.xml` or `properties/mysql-build-properties.xml` file (depending on your DBMS), modify the following properties, as described in the following table:
+
+
+<table summary="DBMS-specific build properties">
+<tr>
+<th id="h1">Property</th>
+<th id="h2">Description</th>
+</tr>
+<tr>
+<td headers="h1"><code>JAVAC</code></td>
+<td headers="h2">The full path name of your Java compiler, <code>javac</code></td>
+</tr>
+<tr>
+<td headers="h1"><code>JAVA</code></td>
+<td headers="h2">The full path name of your Java runtime executable, <code>java</code></td>
+</tr>
+<tr>
+<td headers="h1"><code>PROPERTIESFILE</code></td>
+<td headers="h2">The name of the properties file, either <code>properties/javadb-sample-properties.xml</code> or <code>properties/mysql-sample-properties.xml</code></td>
+</tr>
+<tr>
+<td headers="h1"><code>MYSQLDRIVER</code></td>
+<td headers="h2">The full path name of your MySQL driver. For Connector/J, this is typically <code><em>&lt;Connector/J installation directory&gt;</em>/mysql-connector-java-<em>version-number</em>.jar</code>.</td>
+</tr>
+<tr>
+<td headers="h1"><code>JAVADBDRIVER</code></td>
+<td headers="h2">The full path name of your Java DB driver. This is typically <code><em>&lt;Java DB installation directory&gt;</em>/lib/derby.jar</code>.</td>
+</tr>
+<tr>
+<td headers="h1"><code>XALANDIRECTORY</code></td>
+<td headers="h2">The full path name of the directory that contains Apache Xalan.</td>
+</tr>
+<tr>
+<td headers="h1"><code>CLASSPATH</code></td>
+<td headers="h2">The class path that the JDBC tutorial uses. <em>You do not need to change this value.</em></td>
+</tr>
+<tr>
+<td headers="h1"><code>XALAN</code></td>
+<td headers="h2">The full path name of the file <code>xalan.jar</code>.</td>
+</tr>
+<tr>
+<td headers="h1"><code>DB.VENDOR</code></td>
+<td headers="h2">A value of either <code>derby</code> or <code>mysql</code> depending on whether you are using Java DB or MySQL, respectively. The tutorial uses this value to construct the URL required to connect to the DBMS and identify DBMS-specific code and SQL statements.</td>
+</tr>
+<tr>
+<td headers="h1"><code>DB.DRIVER</code></td>
+<td headers="h2">The fully qualified class name of the JDBC driver. For Java DB, this is <code>org.apache.derby.jdbc.EmbeddedDriver</code>. For MySQL, this is <code>com.mysql.jdbc.Driver</code>.</td>
+</tr>
+<tr>
+<td headers="h1"><code>DB.HOST</code></td>
+<td headers="h2">The host name of the computer hosting your DBMS.</td>
+</tr>
+<tr>
+<td headers="h1"><code>DB.PORT</code></td>
+<td headers="h2">The port number of the computer hosting your DBMS.</td>
+</tr>
+<tr>
+<td headers="h1"><code>DB.SID</code></td>
+<td headers="h2">The name of the database the tutorial creates and uses.</td>
+</tr>
+<tr>
+<td headers="h1"><code>DB.URL.NEWDATABASE</code></td>
+<td headers="h2">The connection URL used to connect to your DBMS when creating a new database. <em>You do not need to change this value.</em></td>
+</tr>
+<tr>
+<td headers="h1"><code>DB.URL</code></td>
+<td headers="h2">The connection URL used to connect to your DBMS. <em>You do not need to change this value.</em></td>
+</tr>
+<tr>
+<td headers="h1"><code>DB.USER</code></td>
+<td headers="h2">The name of the user that has access to create databases in the DBMS.</td>
+</tr>
+<tr>
+<td headers="h1"><code>DB.PASSWORD</code></td>
+<td headers="h2">The password of the user specified in <code>DB.USER</code>.</td>
+</tr>
+<tr>
+<td headers="h1"><code>DB.DELIMITER</code></td>
+<td headers="h2">The character used to separate SQL statements. <em>Do not change this value.</em> It should be the semicolon character (<code>;</code>).</td>
+</tr>
+</table>
+
+**Modify the tutorial properties file**
+
+The tutorial samples use the values in either the properties/javadb-sample-properties.xml file or properties/mysql-sample-properties.xml file (depending on your DBMS) to connect to the DBMS and initialize databases and tables, as described in the following table:
+
+<table summary="DBMS-specific sample properties">
+<tr>
+<th id="h101">Property</th>
+<th id="h102">Description</th>
+</tr>
+<tr>
+<td headers="h101"><code>dbms</code></td>
+<td headers="h102">A value of either <code>derby</code> or <code>mysql</code> depending on whether you are using Java DB or MySQL, respectively. The tutorial uses this value to construct the URL required to connect to the DBMS and identify DBMS-specific code and SQL statements.</td>
+</tr>
+<tr>
+<td headers="h101"><code>jar_file</code></td>
+<td headers="h102">The full path name of the JAR file that contains all the class files of this tutorial.</td>
+</tr>
+<tr>
+<td headers="h101"><code>driver</code></td>
+<td headers="h102">The fully qualified class name of the JDBC driver. For Java DB, this is <code>org.apache.derby.jdbc.EmbeddedDriver</code>. For MySQL, this is <code>com.mysql.jdbc.Driver</code>.</td>
+</tr>
+<tr>
+<td headers="h101"><code>database_name</code></td>
+<td headers="h102">The name of the database the tutorial creates and uses.</td>
+</tr>
+<tr>
+<td headers="h101"><code>user_name</code></td>
+<td headers="h102">The name of the user that has access to create databases in the DBMS.</td>
+</tr>
+<tr>
+<td headers="h101"><code>password</code></td>
+<td headers="h102">The password of the user specified in <code>user_name</code>.</td>
+</tr>
+<tr>
+<td headers="h101"><code>server_name</code></td>
+<td headers="h102">The host name of the computer hosting your DBMS.</td>
+</tr>
+<tr>
+<td headers="h101"><code>port_number</code></td>
+<td headers="h102">The port number of the computer hosting your DBMS.</td>
+</tr>
+</table>
+
+**Note**: For simplicity in demonstrating the JDBC API, the JDBC tutorial sample code does not perform the password management techniques that a deployed system normally uses. In a production environment, you can follow the Oracle Database password management guidelines and disable any sample accounts. See the section [Securing Passwords](http://docs.oracle.com/cd/B28359_01/network.111/b28531/app_devs.htm#CJADABGG) in [Application Design](http://docs.oracle.com/cd/B28359_01/network.111/b28531/app_devs.htm) in [Managing Security for Application Developers](http://docs.oracle.com/cd/B28359_01/network.111/b28531/app_devs.htm) in [Oracle Database Security Guide](http://docs.oracle.com/cd/B28359_01/network.111/b28531/toc.htm) for password management guidelines and other security recommendations.
+
+**Compile and package the samples**
+
+At a command prompt, change the current directory to *`<JDBC tutorial directory>`*. From this directory, run the following command to compile the samples and package them in a jar file:
+
+```
+ant jar
+```
+
+**Create databases, tables, and populate tables**
+
+If you are using MySQL, then run the following command to create a database:
+
+```
+ant create-mysql-database
+```
+
+**Note**: No corresponding Ant target exists in the `build.xml` file that creates a database for Java DB. The database URL for Java DB, which is used to establish a database connection, includes the option to create the database (if it does not already exist). See [Establishing a Connection](#establishing-a-connection) for more information.
+
+If you are using either Java DB or MySQL, then from the same directory, run the following command to delete existing sample database tables, recreate the tables, and populate them. For Java DB, this command also creates the database if it does not already exist:
+
+```
+ant setup
+```
+
+**Note**: You should run the command `ant setup` every time before you run one of the Java classes in the sample. Many of these samples expect specific data in the contents of the sample's database tables.
+
+**Run the samples**
+
+Each target in the `build.xml` file corresponds to a Java class or SQL script in the JDBC samples. The following table lists the targets in the `build.xml` file, which class or script each target executes, and other classes or files each target requires:
+
+<table summary="build.xml targets">
+<tr>
+<th id="h201">Ant Target</th>
+<th id="h202">Class or SQL Script</th>
+<th id="h203">Other Required Classes or Files</th>
+</tr>
+<tr>
+<td headers="h201"><code>javadb-create-procedure</code></td>
+<td headers="h202"><code>javadb/create-procedures.sql</code>; see the <code>build.xml</code> file to view other SQL statements that are run</td>
+<td headers="h203">No other required files</td>
+</tr>
+<tr>
+<td headers="h201"><code>mysql-create-procedure</code></td>
+<td headers="h202"><code>mysql/create-procedures.sql</code>.</td>
+<td headers="h203">No other required files</td>
+</tr>
+<tr>
+<td headers="h201"><code>run</code></td>
+<td headers="h202"><code>JDBCTutorialUtilities</code></td>
+<td headers="h203">No other required classes</td>
+</tr>
+<tr>
+<td headers="h201"><code>runct</code></td>
+<td headers="h202"><code>CoffeesTable</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code></td>
+</tr>
+<tr>
+<td headers="h201"><code>runst</code></td>
+<td headers="h202"><code>SuppliersTable</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code></td>
+</tr>
+<tr>
+<td headers="h201"><code>runjrs</code></td>
+<td headers="h202"><code>JdbcRowSetSample</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code></td>
+</tr>
+<tr>
+<td headers="h201"><code>runcrs</code></td>
+<td headers="h202"><code>CachedRowSetSample</code>, <code>ExampleRowSetListener</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code></td>
+</tr>
+<tr>
+<td headers="h201"><code>runjoin</code></td>
+<td headers="h202"><code>JoinSample</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code></td>
+</tr>
+<tr>
+<td headers="h201"><code>runfrs</code></td>
+<td headers="h202"><code>FilteredRowSetSample</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code>, <code>CityFilter</code>, <code>StateFilter</code></td>
+</tr>
+<tr>
+<td headers="h201"><code>runwrs</code></td>
+<td headers="h202"><code>WebRowSetSample</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code></td>
+</tr>
+<tr>
+<td headers="h201"><code>runclob</code></td>
+<td headers="h202"><code>ClobSample</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code>, <code>txt/colombian-description.txt</code></td>
+</tr>
+<tr>
+<td headers="h201"><code>runrss</code></td>
+<td headers="h202"><code>RSSFeedsTable</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code>, the XML files contained in the <code>xml</code> directory</td>
+</tr>
+<tr>
+<td headers="h201"><code>rundl</code></td>
+<td headers="h202"><code>DatalinkSample</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code></td>
+</tr>
+<tr>
+<td headers="h201"><code>runspjavadb</code></td>
+<td headers="h202"><code>StoredProcedureJavaDBSample</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code>, <code>SuppliersTable</code>, <code>CoffeesTable</code></td>
+</tr>
+<tr>
+<td headers="h201"><code>runspmysql</code></td>
+<td headers="h202"><code>StoredProcedureMySQLSample</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code>, <code>SuppliersTable</code>, <code>CoffeesTable</code></td>
+</tr>
+<tr>
+<td headers="h201"><code>runframe</code></td>
+<td headers="h202"><code>CoffeesFrame</code></td>
+<td headers="h203"><code>JDBCTutorialUtilities</code>, <code>CoffeesTableModel</code></td>
+</tr>
+</table>
+
+For example, to run the class `CoffeesTable`, change the current directory to *`<JDBC tutorial directory>`*, and from this directory, run the following command:
+
+```
+ant runct
+```
+
+### Processing SQL Statements with JDBC
+
+In general, to process any SQL statement with JDBC, you follow these steps:
+
+1. Establishing a connection.
+2. Create a statement.
+3. Execute the query.
+4. Process the ResultSet object.
+5. Close the connection.
+
+This page uses the following method, `CoffeesTables.viewTable`, from the tutorial sample to demonstrate these steps. This method outputs the contents of the table `COFFEES`. This method will be discussed in more detail later in this tutorial:
+
+```java
+public static void viewTable(Connection con, String dbName)
+    throws SQLException {
+
+    Statement stmt = null;
+    String query = "select COF_NAME, SUP_ID, PRICE, " +
+                   "SALES, TOTAL " +
+                   "from " + dbName + ".COFFEES";
+    try {
+        stmt = con.createStatement();
+        ResultSet rs = stmt.executeQuery(query);
+        while (rs.next()) {
+            String coffeeName = rs.getString("COF_NAME");
+            int supplierID = rs.getInt("SUP_ID");
+            float price = rs.getFloat("PRICE");
+            int sales = rs.getInt("SALES");
+            int total = rs.getInt("TOTAL");
+            System.out.println(coffeeName + "\t" + supplierID +
+                               "\t" + price + "\t" + sales +
+                               "\t" + total);
+        }
+    } catch (SQLException e ) {
+        JDBCTutorialUtilities.printSQLException(e);
+    } finally {
+        if (stmt != null) { stmt.close(); }
+    }
+}
+```
+
+#### Establishing Connections
+
+First, establish a connection with the data source you want to use. A data source can be a DBMS, a legacy file system, or some other source of data with a corresponding JDBC driver. This connection is represented by a `Connection` object. See [Establishing a Connection](#establishing-a-connection) for more information.
+
+#### Creating Statements
+
+A `Statement` is an interface that represents a SQL statement. You execute `Statement` objects, and they generate `ResultSet` objects, which is a table of data representing a database result set. You need a `Connection` object to create a `Statement` object.
+
+For example, `CoffeesTables.viewTable` creates a `Statement` object with the following code:
+
+```java
+stmt = con.createStatement();
+```
+
+There are three different kinds of statements:
+
+- `Statement`: Used to implement simple SQL statements with no parameters.
+- `PreparedStatement`: (Extends `Statement`.) Used for precompiling SQL statements that might contain input parameters. See [Using Prepared Statements](#using-prepared-statements) for more information.
+- `CallableStatement`: (Extends `PreparedStatement`.) Used to execute stored procedures that may contain both input and output parameters. See [Stored Procedures](#stored-procedures) for more information.
+
+#### Executing Queries
+
+To execute a query, call an `execute` method from `Statement` such as the following:
+
+- `execute`: Returns `true` if the first object that the query returns is a `ResultSet` object. Use this method if the query could return one or more `ResultSet` objects. Retrieve the `ResultSet` objects returned from the query by repeatedly calling `Statement.getResultSet`.
+- `executeQuery`: Returns one `ResultSet` object.
+- `executeUpdate`: Returns an integer representing the number of rows affected by the SQL statement. Use this method if you are using `INSERT`, `DELETE`, or `UPDATE` SQL statements.
+
+For example, `CoffeesTables.viewTable` executed a `Statement` object with the following code:
+
+```java
+ResultSet rs = stmt.executeQuery(query);
+```
+
+See [Retrieving and Modifying Values from Result Sets](#retrieving-and-modifying-values-from-result-sets) for more information.
+
+#### Processing ResultSet Objects
+
+You access the data in a `ResultSet` object through a cursor. Note that this cursor is not a database cursor. This cursor is a pointer that points to one row of data in the `ResultSet` object. Initially, the cursor is positioned before the first row. You call various methods defined in the `ResultSet` object to move the cursor.
+
+For example, `CoffeesTables.viewTable` repeatedly calls the method `ResultSet.next` to move the cursor forward by one row. Every time it calls next, the method outputs the data in the row where the cursor is currently positioned:
+
+```java
+try {
+    stmt = con.createStatement();
+    ResultSet rs = stmt.executeQuery(query);
+    while (rs.next()) {
+        String coffeeName = rs.getString("COF_NAME");
+        int supplierID = rs.getInt("SUP_ID");
+        float price = rs.getFloat("PRICE");
+        int sales = rs.getInt("SALES");
+        int total = rs.getInt("TOTAL");
+        System.out.println(coffeeName + "\t" + supplierID +
+                           "\t" + price + "\t" + sales +
+                           "\t" + total);
+    }
+}
+// ...
+```
+
+See [Retrieving and Modifying Values from Result Sets](#retrieving-and-modifying-values-from-result-sets) for more information.
+
+#### Closing Connections
+
+When you are finished using a `Statement`, call the method `Statement.close` to immediately release the resources it is using. When you call this method, its `ResultSet` objects are closed.
+
+For example, the method `CoffeesTables.viewTable` ensures that the `Statement` object is closed at the end of the method, regardless of any `SQLException` objects thrown, by wrapping it in a `finally` block:
+
+```java
+} finally {
+    if (stmt != null) { stmt.close(); }
+}
+```
+
+JDBC throws an `SQLException` when it encounters an error during an interaction with a data source. See [Handling SQL Exceptions](#handling-sql-exceptions) for more information.
+
+In JDBC 4.1, which is available in Java SE release 7 and later, you can use a try-with-resources statement to automatically close `Connection`, `Statement`, and `ResultSet` objects, regardless of whether an `SQLException` has been thrown. An automatic resource statement consists of a `try` statement and one or more declared resources. For example, you can modify `CoffeesTables.viewTable` so that its `Statement` object closes automatically, as follows:
+
+```java
+public static void viewTable(Connection con) throws SQLException {
+
+    String query = "select COF_NAME, SUP_ID, PRICE, " +
+                   "SALES, TOTAL " +
+                   "from COFFEES";
+
+    try (Statement stmt = con.createStatement()) {
+
+        ResultSet rs = stmt.executeQuery(query);
+
+        while (rs.next()) {
+            String coffeeName = rs.getString("COF_NAME");
+            int supplierID = rs.getInt("SUP_ID");
+            float price = rs.getFloat("PRICE");
+            int sales = rs.getInt("SALES");
+            int total = rs.getInt("TOTAL");
+            System.out.println(coffeeName + ", " + supplierID +
+                               ", " + price + ", " + sales +
+                               ", " + total);
+        }
+    } catch (SQLException e) {
+        JDBCTutorialUtilities.printSQLException(e);
+    }
+}
+```
+
+The following statement is an try-with-resources statement, which declares one resource, `stmt`, that will be automatically closed when the `try` block terminates:
+
+```java
+try (Statement stmt = con.createStatement()) {
+    // ...
+}
+```
+
+
