@@ -897,7 +897,7 @@ In this section we'll look at some of the high-level concurrency features introd
 
 #### Lock Objects
 
-Synchronized code relies on a simple kind of reentrant lock. This kind of lock is easy to use, but has many limitations. More sophisticated locking idioms are supported by the java.util.concurrent.locks package. We won't examine this package in detail, but instead will focus on its most basic interface, `Lock`.
+Synchronized code relies on a simple kind of reentrant lock. This kind of lock is easy to use, but has many limitations. More sophisticated locking idioms are supported by the `java.util.concurrent.locks` package. We won't examine this package in detail, but instead will focus on its most basic interface, `Lock`.
 
 `Lock` objects work very much like the implicit locks used by synchronized code. As with implicit locks, only one thread can own a `Lock` object at a time. `Lock` objects also support a `wait/notify` mechanism, through their associated `Condition` objects.
 
@@ -1161,16 +1161,21 @@ protected void compute() {
 If the previous methods are in a subclass of the `RecursiveAction` class, then setting up the task to run in a `ForkJoinPool` is straightforward, and involves the following steps:
 
 1. Create a task that represents all of the work to be done.
+   
    ```java
    ForkBlur fb = new ForkBlur(src, 0, src.length, dst);
    // source image pixels are in src
    // destination image pixels are in dst
    ```
+
 2. Create the `ForkJoinPool` that will run the task.
+   
    ```java
    ForkJoinPool pool = new ForkJoinPool();
    ```
+
 3. Run the task.
+   
    ```java
    pool.invoke(fb);
    ```
