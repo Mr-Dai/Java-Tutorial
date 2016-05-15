@@ -1360,3 +1360,1203 @@ public class DistributedTransactionBean implements SessionBean {
 }
 ```
 
+<h3 id="handling-sqlexceptions">Handling SQLExceptions</h3>
+
+#### Overview of SQLException
+
+When JDBC encounters an error during an interaction with a data source, it throws an instance of `SQLException` as opposed to `Exception`. (A data source in this context represents the database to which a `Connection` object is connected.) The `SQLException` instance contains the following information that can help you determine the cause of the error:
+
+- A description of the error. Retrieve the `String` object that contains this description by calling the method `SQLException.getMessage`.
+- A SQLState code. These codes and their respective meanings have been standardized by ISO/ANSI and Open Group (X/Open), although some codes have been reserved for database vendors to define for themselves. This String object consists of five alphanumeric characters. Retrieve this code by calling the method `SQLException.getSQLState`.
+- An error code. This is an integer value identifying the error that caused the `SQLException` instance to be thrown. Its value and meaning are implementation-specific and might be the actual error code returned by the underlying data source. Retrieve the error by calling the method `SQLException.getErrorCode`.
+- A cause. A `SQLException` instance might have a causal relationship, which consists of one or more `Throwable` objects that caused the `SQLException` instance to be thrown. To navigate this chain of causes, recursively call the method `SQLException.getCause` until a `null` value is returned.
+- A reference to any *chained* exceptions. If more than one error occurs, the exceptions are referenced through this chain. Retrieve these exceptions by calling the method `SQLException.getNextException` on the exception that was thrown.
+
+#### Retrieving Exceptions
+
+The following method, `JDBCTutorialUtilities.printSQLException` outputs the SQLState, error code, error description, and cause (if there is one) contained in the `SQLException` as well as any other exception chained to it:
+
+```java
+public static void printSQLException(SQLException ex) {
+
+    for (Throwable e : ex) {
+        if (e instanceof SQLException) {
+            if (ignoreSQLException(
+                ((SQLException)e).
+                getSQLState()) == false) {
+
+                e.printStackTrace(System.err);
+                System.err.println("SQLState: " +
+                    ((SQLException)e).getSQLState());
+
+                System.err.println("Error Code: " +
+                    ((SQLException)e).getErrorCode());
+
+                System.err.println("Message: " + e.getMessage());
+
+                Throwable t = ex.getCause();
+                while(t != null) {
+                    System.out.println("Cause: " + t);
+                    t = t.getCause();
+                }
+            }
+        }
+    }
+}
+```
+
+For example, if you call the method `CoffeesTable.dropTable` with Java DB as your DBMS, the table `COFFEES` does not exist, *and* you remove the call to `JDBCTutorialUtilities.ignoreSQLException`, the output will be similar to the following:
+
+```
+SQLState: 42Y55
+Error Code: 30000
+Message: 'DROP TABLE' cannot be performed on
+'TESTDB.COFFEES' because it does not exist.
+```
+
+Instead of outputting `SQLException` information, you could instead first retrieve the `SQLState` then process the `SQLException` accordingly. For example, the method `JDBCTutorialUtilities.ignoreSQLException` returns `true` if the `SQLState` is equal to code `42Y55` (and you are using Java DB as your DBMS), which causes `JDBCTutorialUtilities.printSQLException` to ignore the `SQLException`:
+
+```java
+public static boolean ignoreSQLException(String sqlState) {
+
+    if (sqlState == null) {
+        System.out.println("The SQL state is not defined!");
+        return false;
+    }
+
+    // X0Y32: Jar file already exists in schema
+    if (sqlState.equalsIgnoreCase("X0Y32"))
+        return true;
+
+    // 42Y55: Table already exists in schema
+    if (sqlState.equalsIgnoreCase("42Y55"))
+        return true;
+
+    return false;
+}
+```
+
+#### Retrieving Warnings
+
+`SQLWarning` objects are a subclass of `SQLException` that deal with database access warnings. Warnings do not stop the execution of an application, as exceptions do; they simply alert the user that something did not happen as planned. For example, a warning might let you know that a privilege you attempted to revoke was not revoked. Or a warning might tell you that an error occurred during a requested disconnection.
+
+A warning can be reported on a `Connection` object, a `Statement` object (including `PreparedStatement` and `CallableStatement` objects), or a `ResultSet` object. Each of these classes has a `getWarnings` method, which you must invoke in order to see the first warning reported on the calling object. If `getWarnings` returns a warning, you can call the `SQLWarning` method `getNextWarning` on it to get any additional warnings. Executing a statement automatically clears the warnings from a previous statement, so they do not build up. This means, however, that if you want to retrieve warnings reported on a statement, you must do so before you execute another statement.
+
+The following methods from `JDBCTutorialUtilities` illustrate how to get complete information about any warnings reported on `Statement` or `ResultSet` objects:
+
+```java
+public static void getWarningsFromResultSet(ResultSet rs)
+    throws SQLException {
+    JDBCTutorialUtilities.printWarnings(rs.getWarnings());
+}
+
+public static void getWarningsFromStatement(Statement stmt)
+    throws SQLException {
+    JDBCTutorialUtilities.printWarnings(stmt.getWarnings());
+}
+
+public static void printWarnings(SQLWarning warning)
+    throws SQLException {
+
+    if (warning != null) {
+        System.out.println("\n---Warning---\n");
+
+    while (warning != null) {
+        System.out.println("Message: " + warning.getMessage());
+        System.out.println("SQLState: " + warning.getSQLState());
+        System.out.print("Vendor error code: ");
+        System.out.println(warning.getErrorCode());
+        System.out.println("");
+        warning = warning.getNextWarning();
+    }
+}
+```
+
+The most common warning is a `DataTruncation` warning, a subclass of `SQLWarning`. All `DataTruncation` objects have a SQLState of `01004`, indicating that there was a problem with reading or writing data. `DataTruncation` methods let you find out in which column or parameter data was truncated, whether the truncation was on a read or write operation, how many bytes should have been transferred, and how many bytes were actually transferred.
+
+#### Categorized SQLExceptions
+
+Your JDBC driver might throw a subclass of `SQLException` that corresponds to a common SQLState or a common error state that is not associated with a specific SQLState class value. This enables you to write more portable error-handling code. These exceptions are subclasses of one of the following classes:
+
+- `SQLNonTransientException`
+- `SQLTransientException`
+- `SQLRecoverableException`
+
+See the latest Javadoc of the `java.sql` package or the documentation of your JDBC driver for more information about these subclasses.
+
+#### Other Subclasses of SQLException
+
+The following subclasses of `SQLException` can also be thrown:
+
+- `BatchUpdateException` is thrown when an error occurs during a batch update operation. In addition to the information provided by `SQLException`, `BatchUpdateException` provides the update counts for all statements that were executed before the error occurred.
+- `SQLClientInfoException` is thrown when one or more client information properties could not be set on a Connection. In addition to the information provided by `SQLException`, `SQLClientInfoException` provides a list of client information properties that were not set.
+
+<h3 id="setting-up-tables">Setting Up Tables</h3>
+
+#### COFFEES Table
+
+The `COFFEES` table stores information about the coffees available for sale at The Coffee Break:
+
+<table summary="COFFEES table">
+<tr>
+<th id="h1"><code>COF_NAME</code></th>
+<th id="h2"><code>SUP_ID</code></th>
+<th id="h3"><code>PRICE</code></th>
+<th id="h4"><code>SALES</code></th>
+<th id="h5"><code>TOTAL</code></th>
+</tr>
+<tr>
+<td headers="h1">Colombian</td>
+<td headers="h2">101</td>
+<td headers="h3">7.99</td>
+<td headers="h4">0</td>
+<td headers="h5">0</td>
+</tr>
+<tr>
+<td headers="h1">French_Roast</td>
+<td headers="h2">49</td>
+<td headers="h3">8.99</td>
+<td headers="h4">0</td>
+<td headers="h5">0</td>
+</tr>
+<tr>
+<td headers="h1">Espresso</td>
+<td headers="h2">150</td>
+<td headers="h3">9.99</td>
+<td headers="h4">0</td>
+<td headers="h5">0</td>
+</tr>
+<tr>
+<td headers="h1">Colombian_Decaf</td>
+<td headers="h2">101</td>
+<td headers="h3">8.99</td>
+<td headers="h4">0</td>
+<td headers="h5">0</td>
+</tr>
+<tr>
+<td headers="h1">French_Roast_Decaf</td>
+<td headers="h2">49</td>
+<td headers="h3">9.99</td>
+<td headers="h4">0</td>
+<td headers="h5">0</td>
+</tr>
+</table>
+
+The following describes each of the columns in the `COFFEES` table:
+
+- `COF_NAME`: Stores the coffee name. Holds values with a SQL type of `VARCHAR` with a maximum length of 32 characters. Because the names are different for each type of coffee sold, the name uniquely identifies a particular coffee and serves as the primary key.
+- `SUP_ID`: Stores a number identifying the coffee supplier. Holds values with a SQL type of `INTEGER`. It is defined as a foreign key that references the column `SUP_ID` in the `SUPPLIERS` table. Consequently, the DBMS will enforce that each value in this column matches one of the values in the corresponding column in the `SUPPLIERS` table.
+- `PRICE`: Stores the cost of the coffee per pound. Holds values with a SQL type of `FLOAT` because it needs to hold values with decimal points. (Note that money values would typically be stored in a SQL type `DECIMAL` or `NUMERIC`, but because of differences among DBMSs and to avoid incompatibility with earlier versions of JDBC, the tutorial uses the more standard type `FLOAT`.)
+- `SALES`: Stores the number of pounds of coffee sold during the current week. Holds values with a SQL type of `INTEGER`.
+- `TOTAL`: Stores the number of pounds of coffee sold to date. Holds values with a SQL type of `INTEGER`.
+
+#### SUPPLIERS Table
+
+The `SUPPLIERS` stores information about each of the suppliers:
+
+<table summary="SUPPLIERS table">
+<tr>
+<th id="h101"><code>SUP_ID</code></th>
+<th id="h102"><code>SUP_NAME</code></th>
+<th id="h103"><code>STREET</code></th>
+<th id="h104"><code>CITY</code></th>
+<th id="h105"><code>STATE</code></th>
+<th id="h106"><code>ZIP</code></th>
+</tr>
+<tr>
+<td headers="h101">101</td>
+<td headers="h102">Acme, Inc.</td>
+<td headers="h103">99 Market Street</td>
+<td headers="h104">Groundsville</td>
+<td headers="h105">CA</td>
+<td headers="h106">95199</td>
+</tr>
+<tr>
+<td headers="h101">49</td>
+<td headers="h102">Superior Coffee</td>
+<td headers="h103">1 Party Place</td>
+<td headers="h104">Mendocino</td>
+<td headers="h105">CA</td>
+<td headers="h106">95460</td>
+</tr>
+<tr>
+<td headers="h101">150</td>
+<td headers="h102">The High Ground</td>
+<td headers="h103">100 Coffee Lane</td>
+<td headers="h104">Meadows</td>
+<td headers="h105">CA</td>
+<td headers="h106">93966</td>
+</tr>
+</table>
+
+The following describes each of the columns in the `SUPPLIERS` table:
+
+- `SUP_ID`: Stores a number identifying the coffee supplier. Holds values with a SQL type of `INTEGER`. It is the primary key in this table.
+- `SUP_NAME`: Stores the name of the coffee supplier.
+- `STREET`, `CITY`, `STATE`, and `ZIP`: These columns store the address of the coffee supplier.
+
+#### COF_INVENTORY Table
+
+The table `COF_INVENTORY` stores information about the amount of coffee stored in each warehouse:
+
+<table summary="COF_INVENTORY table">
+<tr>
+<th id="h201"><code>WAREHOUSE_ID</code></th>
+<th id="h202"><code>COF_NAME</code></th>
+<th id="h203"><code>SUP_ID</code></th>
+<th id="h204"><code>QUAN</code></th>
+<th id="h205"><code>DATE_VAL</code></th>
+</tr>
+<tr>
+<td headers="h201">1234</td>
+<td headers="h202">House_Blend</td>
+<td headers="h203">49</td>
+<td headers="h204">0</td>
+<td headers="h205">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h201">1234</td>
+<td headers="h202">House_Blend_Decaf</td>
+<td headers="h203">49</td>
+<td headers="h204">0</td>
+<td headers="h205">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h201">1234</td>
+<td headers="h202">Colombian</td>
+<td headers="h203">101</td>
+<td headers="h204">0</td>
+<td headers="h205">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h201">1234</td>
+<td headers="h202">French_Roast</td>
+<td headers="h203">49</td>
+<td headers="h204">0</td>
+<td headers="h205">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h201">1234</td>
+<td headers="h202">Espresso</td>
+<td headers="h203">150</td>
+<td headers="h204">0</td>
+<td headers="h205">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h201">1234</td>
+<td headers="h202">Colombian_Decaf</td>
+<td headers="h203">101</td>
+<td headers="h204">0</td>
+<td headers="h205">2006_04_01</td>
+</tr>
+</table>
+
+The following describes each of the columns in the `COF_INVENTORY` table:
+
+- `WAREHOUSE_ID`: Stores a number identifying a warehouse.
+- `COF_NAME`: Stores the name of a particular type of coffee.
+- `SUP_ID`: Stores a number identifying a supplier.
+- `QUAN`: Stores a number indicating the amount of merchandise available.
+- `DATE`: Stores a timestamp value indicating the last time the row was updated.
+
+#### MERCH_INVENTORY Table
+
+The table `MERCH_INVENTORY` stores information about the amount of non-coffee merchandise in stock:
+
+<table summary="MERCH_INVETORY table">
+<tr>
+<th id="h301"><code>ITEM_ID</code></th>
+<th id="h302"><code>ITEM_NAME</code></th>
+<th id="h303"><code>SUP_ID</code></th>
+<th id="h304"><code>QUAN</code></th>
+<th id="h305"><code>DATE</code></th>
+</tr>
+<tr>
+<td headers="h301">00001234</td>
+<td headers="h302">Cup_Large</td>
+<td headers="h303">00456</td>
+<td headers="h304">28</td>
+<td headers="h305">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h301">00001235</td>
+<td headers="h302">Cup_Small</td>
+<td headers="h303">00456</td>
+<td headers="h304">36</td>
+<td headers="h305">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h301">00001236</td>
+<td headers="h302">Saucer</td>
+<td headers="h303">00456</td>
+<td headers="h304">64</td>
+<td headers="h305">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h301">00001287</td>
+<td headers="h302">Carafe</td>
+<td headers="h303">00456</td>
+<td headers="h304">12</td>
+<td headers="h305">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h301">00006931</td>
+<td headers="h302">Carafe</td>
+<td headers="h303">00927</td>
+<td headers="h304">3</td>
+<td headers="h305">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h301">00006935</td>
+<td headers="h302">PotHolder</td>
+<td headers="h303">00927</td>
+<td headers="h304">88</td>
+<td headers="h305">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h301">00006977</td>
+<td headers="h302">Napkin</td>
+<td headers="h303">00927</td>
+<td headers="h304">108</td>
+<td headers="h305">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h301">00006979</td>
+<td headers="h302">Towel</td>
+<td headers="h303">00927</td>
+<td headers="h304">24</td>
+<td headers="h305">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h301">00004488</td>
+<td headers="h302">CofMaker</td>
+<td headers="h303">08732</td>
+<td headers="h304">5</td>
+<td headers="h305">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h301">00004490</td>
+<td headers="h302">CofGrinder</td>
+<td headers="h303">08732</td>
+<td headers="h304">9</td>
+<td headers="h305">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h301">00004495</td>
+<td headers="h302">EspMaker</td>
+<td headers="h303">08732</td>
+<td headers="h304">4</td>
+<td headers="h305">2006_04_01</td>
+</tr>
+<tr>
+<td headers="h301">00006914</td>
+<td headers="h302">Cookbook</td>
+<td headers="h303">00927</td>
+<td headers="h304">12</td>
+<td headers="h305">2006_04_01</td>
+</tr>
+</table>
+
+The following describes each of the columns in the `MERCH_INVENTORY` table:
+
+- `ITEM_ID`: Stores a number identifying an item.
+- `ITEM_NAME`: Stores the name of an item.
+- `SUP_ID`: Stores a number identifying a supplier.
+- `QUAN`: Stores a number indicating the amount of that item available.
+- `DATE`: Stores a timestamp value indicating the last time the row was updated.
+
+#### COFFEE_HOUSES Table
+
+The table `COFFEE_HOUSES` stores locations of coffee houses:
+
+<table summary="COFFEE_HOUSES table">
+<tr>
+<th id="h401"><code>STORE_ID</code></th>
+<th id="h402"><code>CITY</code></th>
+<th id="h403"><code>COFFEE</code></th>
+<th id="h404"><code>MERCH</code></th>
+<th id="h405"><code>TOTAL</code></th>
+</tr>
+<tr>
+<td headers="h401">10023</td>
+<td headers="h402">Mendocino</td>
+<td headers="h403">3450</td>
+<td headers="h404">2005</td>
+<td headers="h405">5455</td>
+</tr>
+<tr>
+<td headers="h401">33002</td>
+<td headers="h402">Seattle</td>
+<td headers="h403">4699</td>
+<td headers="h404">3109</td>
+<td headers="h405">7808</td>
+</tr>
+<tr>
+<td headers="h401">10040</td>
+<td headers="h402">SF</td>
+<td headers="h403">5386</td>
+<td headers="h404">2841</td>
+<td headers="h405">8227</td>
+</tr>
+<tr>
+<td headers="h401">32001</td>
+<td headers="h402">Portland</td>
+<td headers="h403">3147</td>
+<td headers="h404">3579</td>
+<td headers="h405">6726</td>
+</tr>
+<tr>
+<td headers="h401">10042</td>
+<td headers="h402">SF</td>
+<td headers="h403">2863</td>
+<td headers="h404">1874</td>
+<td headers="h405">4710</td>
+</tr>
+<tr>
+<td headers="h401">10024</td>
+<td headers="h402">Sacramento</td>
+<td headers="h403">1987</td>
+<td headers="h404">2341</td>
+<td headers="h405">4328</td>
+</tr>
+<tr>
+<td headers="h401">10039</td>
+<td headers="h402">Carmel</td>
+<td headers="h403">2691</td>
+<td headers="h404">1121</td>
+<td headers="h405">3812</td>
+</tr>
+<tr>
+<td headers="h401">10041</td>
+<td headers="h402">LA</td>
+<td headers="h403">1533</td>
+<td headers="h404">1007</td>
+<td headers="h405">2540</td>
+</tr>
+<tr>
+<td headers="h401">33005</td>
+<td headers="h402">Olympia</td>
+<td headers="h403">2733</td>
+<td headers="h404">1550</td>
+<td headers="h405">4283</td>
+</tr>
+<tr>
+<td headers="h401">33010</td>
+<td headers="h402">Seattle</td>
+<td headers="h403">3210</td>
+<td headers="h404">2177</td>
+<td headers="h405">5387</td>
+</tr>
+<tr>
+<td headers="h401">10035</td>
+<td headers="h402">SF</td>
+<td headers="h403">1922</td>
+<td headers="h404">1056</td>
+<td headers="h405">2978</td>
+</tr>
+<tr>
+<td headers="h401">10037</td>
+<td headers="h402">LA</td>
+<td headers="h403">2143</td>
+<td headers="h404">1876</td>
+<td headers="h405">4019</td>
+</tr>
+<tr>
+<td headers="h401">10034</td>
+<td headers="h402">San_Jose</td>
+<td headers="h403">1234</td>
+<td headers="h404">1032</td>
+<td headers="h405">2266</td>
+</tr>
+<tr>
+<td headers="h401">32004</td>
+<td headers="h402">Eugene</td>
+<td headers="h403">1356</td>
+<td headers="h404">1112</td>
+<td headers="h405">2468</td>
+</tr>
+</table>
+
+The following describes each of the columns in the `COFFEE_HOUSES` table:
+
+`STORE_ID`: Stores a number identifying a coffee house. It indicates, among other things, the state in which the coffee house is located. A value beginning with 10, for example, means that the state is California. `STORE_ID` values beginning with 32 indicate Oregon, and those beginning with 33 indicate the state of Washington.
+`CITY`: Stores the name of the city in which the coffee house is located.
+`COFFEE`: Stores a number indicating the amount of coffee sold.
+`MERCH`: Stores a number indicating the amount of merchandise sold.
+`TOTAL`: Stores a number indicating the total amount of coffee and merchandise sold.
+
+#### DATA_REPOSITORY Table
+
+The table DATA_REPOSITORY stores URLs that reference documents and other data of interest to The Coffee Break. The script `populate_tables.sql` does not add any data to this table. The following describes each of the columns in this table:
+
+- `DOCUMENT_NAME`: Stores a string that identifies the URL.
+- `URL`: Stores a URL.
+
+#### Creating Tables
+
+You can create tables with Apache Ant or JDBC API.
+
+##### Creating Tables with Apache Ant
+
+To create the tables used with the tutorial sample code, run the following command in the directory `<JDBC tutorial directory>`:
+
+```
+ant setup
+```
+
+This command runs several Ant targets, including the following, `build-tables` (from the `build.xml` file):
+
+```xml
+<target name="build-tables"
+  description="Create database tables">
+  <sql
+    driver="${DB.DRIVER}"
+    url="${DB.URL}"
+    userid="${DB.USER}"
+    password="${DB.PASSWORD}"
+    classpathref="CLASSPATH"
+    delimiter="${DB.DELIMITER}"
+    autocommit="false" onerror="abort">
+    <transaction src=
+  "./sql/${DB.VENDOR}/create-tables.sql"/>
+  </sql>
+</target>
+```
+
+The sample specifies values for the following `sql` Ant task parameters:
+
+<table summary="Ant parameters">
+<tr>
+<th id="h501">Parameter</th>
+<th id="h502">Description</th>
+</tr>
+<tr>
+<td headers="h501"><code>driver</code></td>
+<td headers="h502">Fully qualified class name of your JDBC driver. This sample uses <code>org.apache.derby.jdbc.EmbeddedDriver</code> for Java DB and <code>com.mysql.jdbc.Driver</code> for MySQL Connector/J.</td>
+</tr>
+<tr>
+<td headers="h501"><code>url</code></td>
+<td headers="h502">Database connection URL that your DBMS JDBC driver uses to connect to a database.</td>
+</tr>
+<tr>
+<td headers="h501"><code>userid</code></td>
+<td headers="h502">Name of a valid user in your DBMS.</td>
+</tr>
+<tr>
+<td headers="h501"><code>password</code></td>
+<td headers="h502">Password of the user specified in <code>userid</code></td>
+</tr>
+<tr>
+<td headers="h501"><code>classpathref</code></td>
+<td headers="h502">Full path name of the JAR file that contains the class specified in <code>driver</code></td>
+</tr>
+<tr>
+<td headers="h501"><code>delimiter</code></td>
+<td headers="h502">String or character that separates SQL statements. This sample uses the semicolon (<code>;</code>).</td>
+</tr>
+<tr>
+<td headers="h501"><code>autocommit</code></td>
+<td headers="h502">Boolean value; if set to <code>false</code>, all SQL statements are executed as one transaction.</td>
+</tr>
+<tr>
+<td headers="h501"><code>onerror</code></td>
+<td headers="h502">Action to perform when a statement fails; possible values are <code>continue</code>, <code>stop</code>, and <code>abort</code>. The value <code>abort</code> specifies that if an error occurs, the transaction is aborted.</td>
+</tr>
+</table>
+
+The sample stores the values of these parameters in a separate file. The build file `build.xml` retrieves these values with the `import` task:
+
+```xml
+<import file="${ANTPROPERTIES}"/>
+```
+
+The `transaction` element specifies a file that contains SQL statements to execute. The file `create-tables.sql` contains SQL statements that create all the tables described on this page. For example, the following excerpt from this file creates the tables `SUPPLIERS` and `COFFEES`:
+
+```sql
+create table SUPPLIERS
+    (SUP_ID integer NOT NULL,
+    SUP_NAME varchar(40) NOT NULL,
+    STREET varchar(40) NOT NULL,
+    CITY varchar(20) NOT NULL,
+    STATE char(2) NOT NULL,
+    ZIP char(5),
+    PRIMARY KEY (SUP_ID));
+
+create table COFFEES
+    (COF_NAME varchar(32) NOT NULL,
+    SUP_ID int NOT NULL,
+    PRICE numeric(10,2) NOT NULL,
+    SALES integer NOT NULL,
+    TOTAL integer NOT NULL,
+    PRIMARY KEY (COF_NAME),
+    FOREIGN KEY (SUP_ID)
+        REFERENCES SUPPLIERS (SUP_ID));
+```
+
+**Note**: The file `build.xml` contains another target named `drop-tables` that deletes the tables used by the tutorial. The `setup` target runs `drop-tables` before running the `build-tables` target.
+
+##### Creating Tables with JDBC API
+
+The following method, `SuppliersTable.createTable`, creates the `SUPPLIERS` table:
+
+```java
+public void createTable() throws SQLException {
+    String createString =
+        "create table " + dbName +
+        ".SUPPLIERS " +
+        "(SUP_ID integer NOT NULL, " +
+        "SUP_NAME varchar(40) NOT NULL, " +
+        "STREET varchar(40) NOT NULL, " +
+        "CITY varchar(20) NOT NULL, " +
+        "STATE char(2) NOT NULL, " +
+        "ZIP char(5), " +
+        "PRIMARY KEY (SUP_ID))";
+
+    Statement stmt = null;
+    try {
+        stmt = con.createStatement();
+        stmt.executeUpdate(createString);
+    } catch (SQLException e) {
+        JDBCTutorialUtilities.printSQLException(e);
+    } finally {
+        if (stmt != null) { stmt.close(); }
+    }
+}
+```
+
+The following method, `CoffeesTable.createTable`, creates the `COFFEES` table:
+
+```java
+public void createTable() throws SQLException {
+    String createString =
+        "create table " + dbName +
+        ".COFFEES " +
+        "(COF_NAME varchar(32) NOT NULL, " +
+        "SUP_ID int NOT NULL, " +
+        "PRICE float NOT NULL, " +
+        "SALES integer NOT NULL, " +
+        "TOTAL integer NOT NULL, " +
+        "PRIMARY KEY (COF_NAME), " +
+        "FOREIGN KEY (SUP_ID) REFERENCES " +
+        dbName + ".SUPPLIERS (SUP_ID))";
+
+    Statement stmt = null;
+    try {
+        stmt = con.createStatement();
+        stmt.executeUpdate(createString);
+    } catch (SQLException e) {
+        JDBCTutorialUtilities.printSQLException(e);
+    } finally {
+        if (stmt != null) { stmt.close(); }
+    }
+}
+```
+
+In both methods, `con` is a `Connection` object and `dbName` is the name of the database in which you are creating the table.
+
+To execute the SQL query, such as those specified by the `String createString`, use a `Statement` object. To create a `Statement` object, call the method `Connection.createStatement` from an existing `Connection` object. To execute a SQL query, call the method `Statement.executeUpdate`.
+
+All `Statement` objects are closed when the connection that created them is closed. However, it is good coding practice to explicitly close `Statement` objects as soon as you are finished with them. This allows any external resources that the statement is using to be released immediately. Close a statement by calling the method `Statement.close`. Place this statement in a `finally` to ensure that it closes even if the normal program flow is interrupted because an exception (such as `SQLException`) is thrown.
+
+**Note**: You must create the `SUPPLIERS` table before the `COFFEES` because `COFFEES` contains a foreign key, `SUP_ID` that references `SUPPLIERS`.
+
+#### Populating Tables
+
+Similarly, you can insert data into tables with Apache Ant or JDBC API.
+
+##### Populating Tables with Apache Ant
+
+In addition to creating the tables used by this tutorial, the command `ant setup` also populates these tables. This command runs the Ant target `populate-tables`, which runs the SQL script `populate-tables.sql`.
+
+The following is an excerpt from `populate-tables.sql` that populates the tables `SUPPLIERS` and `COFFEES`:
+
+```sql
+insert into SUPPLIERS values(
+    49, 'Superior Coffee', '1 Party Place',
+    'Mendocino', 'CA', '95460');
+insert into SUPPLIERS values(
+    101, 'Acme, Inc.', '99 Market Street',
+    'Groundsville', 'CA', '95199');
+insert into SUPPLIERS values(
+    150, 'The High Ground',
+    '100 Coffee Lane', 'Meadows', 'CA', '93966');
+insert into COFFEES values(
+    'Colombian', 00101, 7.99, 0, 0);
+insert into COFFEES values(
+    'French_Roast', 00049, 8.99, 0, 0);
+insert into COFFEES values(
+    'Espresso', 00150, 9.99, 0, 0);
+insert into COFFEES values(
+    'Colombian_Decaf', 00101, 8.99, 0, 0);
+insert into COFFEES values(
+    'French_Roast_Decaf', 00049, 9.99, 0, 0);
+```
+
+##### Populating Tables with JDBC API
+
+The following method, `SuppliersTable.populateTable`, inserts data into the table:
+
+```java
+public void populateTable() throws SQLException {
+
+    Statement stmt = null;
+    try {
+        stmt = con.createStatement();
+        stmt.executeUpdate(
+            "insert into " + dbName +
+            ".SUPPLIERS " +
+            "values(49, 'Superior Coffee', " +
+            "'1 Party Place', " +
+            "'Mendocino', 'CA', '95460')");
+
+        stmt.executeUpdate(
+            "insert into " + dbName +
+            ".SUPPLIERS " +
+            "values(101, 'Acme, Inc.', " +
+            "'99 Market Street', " +
+            "'Groundsville', 'CA', '95199')");
+
+        stmt.executeUpdate(
+            "insert into " + dbName +
+            ".SUPPLIERS " +
+            "values(150, " +
+            "'The High Ground', " +
+            "'100 Coffee Lane', " +
+            "'Meadows', 'CA', '93966')");
+    } catch (SQLException e) {
+        JDBCTutorialUtilities.printSQLException(e);
+    } finally {
+        if (stmt != null) { stmt.close(); }
+    }
+}
+```
+
+The following method, `CoffeesTable.populateTable`, inserts data into the table:
+
+```java
+public void populateTable() throws SQLException {
+
+    Statement stmt = null;
+    try {
+        stmt = con.createStatement();
+        stmt.executeUpdate(
+            "insert into " + dbName +
+            ".COFFEES " +
+            "values('Colombian', 00101, " +
+            "7.99, 0, 0)");
+
+        stmt.executeUpdate(
+            "insert into " + dbName +
+            ".COFFEES " +
+            "values('French_Roast', " +
+            "00049, 8.99, 0, 0)");
+
+        stmt.executeUpdate(
+            "insert into " + dbName +
+            ".COFFEES " +
+            "values('Espresso', 00150, 9.99, 0, 0)");
+
+        stmt.executeUpdate(
+            "insert into " + dbName +
+            ".COFFEES " +
+            "values('Colombian_Decaf', " +
+            "00101, 8.99, 0, 0)");
+
+        stmt.executeUpdate(
+            "insert into " + dbName +
+            ".COFFEES " +
+            "values('French_Roast_Decaf', " +
+            "00049, 9.99, 0, 0)");
+    } catch (SQLException e) {
+        JDBCTutorialUtilities.printSQLException(e);
+    } finally {
+        if (stmt != null) {
+          stmt.close();
+        }
+    }
+}
+```
+
+<h3 id="retrieving-and-modifying-values-from-result-sets">Retrieving and Modifying Values from Result Sets</h3>
+
+The following method, `CoffeesTable.viewTable` outputs the contents of the `COFFEES` tables, and demonstrates the use of `ResultSet` objects and cursors:
+
+```java
+public static void viewTable(Connection con, String dbName)
+    throws SQLException {
+
+    Statement stmt = null;
+    String query =
+        "select COF_NAME, SUP_ID, PRICE, " +
+        "SALES, TOTAL " +
+        "from " + dbName + ".COFFEES";
+
+    try {
+        stmt = con.createStatement();
+        ResultSet rs = stmt.executeQuery(query);
+        while (rs.next()) {
+            String coffeeName = rs.getString("COF_NAME");
+            int supplierID = rs.getInt("SUP_ID");
+            float price = rs.getFloat("PRICE");
+            int sales = rs.getInt("SALES");
+            int total = rs.getInt("TOTAL");
+            System.out.println(coffeeName + "\t" + supplierID +
+                               "\t" + price + "\t" + sales +
+                               "\t" + total);
+        }
+    } catch (SQLException e ) {
+        JDBCTutorialUtilities.printSQLException(e);
+    } finally {
+        if (stmt != null) { stmt.close(); }
+    }
+}
+```
+
+A `ResultSet` object is a table of data representing a database result set, which is usually generated by executing a statement that queries the database. For example, the `CoffeeTables.viewTable` method creates a `ResultSet`, `rs`, when it executes the query through the `Statement` object, `stmt`. Note that a `ResultSet` object can be created through any object that implements the `Statement` interface, including `PreparedStatement`, `CallableStatement`, and `RowSet`.
+
+You access the data in a `ResultSet` object through a cursor. Note that this cursor is not a database cursor. This cursor is a pointer that points to one row of data in the `ResultSet`. Initially, the cursor is positioned before the first row. The method `ResultSet.next` moves the cursor to the next row. This method returns `false` if the cursor is positioned after the last row. This method repeatedly calls the `ResultSet.next` method with a `while` loop to iterate through all the data in the `ResultSet`.
+
+#### ResultSet Interface
+
+The `ResultSet` interface provides methods for retrieving and manipulating the results of executed queries, and `ResultSet` objects can have different functionality and characteristics. These characteristics are type, concurrency, and cursor *holdability*.
+
+##### ResultSet Types
+
+The type of a `ResultSet` object determines the level of its functionality in two areas: the ways in which the cursor can be manipulated, and how concurrent changes made to the underlying data source are reflected by the `ResultSet` object.
+
+The sensitivity of a `ResultSet` object is determined by one of three different `ResultSet` types:
+
+- `TYPE_FORWARD_ONLY`: The result set cannot be scrolled; its cursor moves forward only, from before the first row to after the last row. The rows contained in the result set depend on how the underlying database generates the results. That is, it contains the rows that satisfy the query at either the time the query is executed or as the rows are retrieved.
+- `TYPE_SCROLL_INSENSITIVE`: The result can be scrolled; its cursor can move both forward and backward relative to the current position, and it can move to an absolute position. The result set is insensitive to changes made to the underlying data source while it is open. It contains the rows that satisfy the query at either the time the query is executed or as the rows are retrieved.
+- `TYPE_SCROLL_SENSITIVE`: The result can be scrolled; its cursor can move both forward and backward relative to the current position, and it can move to an absolute position. The result set reflects changes made to the underlying data source while the result set remains open.
+
+The default `ResultSet` type is `TYPE_FORWARD_ONLY`.
+
+**Note**: Not all databases and JDBC drivers support all `ResultSet` types. The method `DatabaseMetaData.supportsResultSetType` returns `true` if the specified `ResultSet` type is supported and `false` otherwise.
+
+##### ResultSet Concurrency
+
+The concurrency of a `ResultSet` object determines what level of update functionality is supported.
+
+There are two concurrency levels:
+
+- `CONCUR_READ_ONLY`: The `ResultSet` object cannot be updated using the `ResultSet` interface.
+- `CONCUR_UPDATABLE`: The `ResultSet` object can be updated using the `ResultSet` interface.
+
+The default `ResultSet` concurrency is `CONCUR_READ_ONLY`.
+
+**Note**: Not all JDBC drivers and databases support concurrency. The method `DatabaseMetaData.supportsResultSetConcurrency` returns `true` if the specified concurrency level is supported by the driver and false otherwise.
+
+The method `CoffeesTable.modifyPrices` demonstrates how to use a `ResultSet` object whose concurrency level is `CONCUR_UPDATABLE`.
+
+##### Cursor Holdability
+
+Calling the method `Connection.commit` can close the `ResultSet` objects that have been created during the current transaction. In some cases, however, this may not be the desired behavior. The `ResultSet` property holdability gives the application control over whether ResultSet objects (cursors) are closed when commit is called.
+
+The following `ResultSet` constants may be supplied to the `Connection` methods createStatement, prepareStatement, and prepareCall:
+
+- `HOLD_CURSORS_OVER_COMMIT`: `ResultSet` cursors are not closed; they are *holdable*: they are held open when the method `commit` is called. Holdable cursors might be ideal if your application uses mostly read-only `ResultSet` objects.
+- `CLOSE_CURSORS_AT_COMMIT`: `ResultSet` objects (cursors) are closed when the `commit` method is called. Closing cursors when this method is called can result in better performance for some applications.
+
+The default cursor holdability varies depending on your DBMS.
+
+**Note**: Not all JDBC drivers and databases support holdable and non-holdable cursors. The following method, `JDBCTutorialUtilities.cursorHoldabilitySupport`, outputs the default cursor holdability of `ResultSet` objects and whether `HOLD_CURSORS_OVER_COMMIT` and `CLOSE_CURSORS_AT_COMMIT` are supported:
+
+```java
+public static void cursorHoldabilitySupport(Connection conn)
+    throws SQLException {
+
+    DatabaseMetaData dbMetaData = conn.getMetaData();
+    System.out.println("ResultSet.HOLD_CURSORS_OVER_COMMIT = " +
+        ResultSet.HOLD_CURSORS_OVER_COMMIT);
+
+    System.out.println("ResultSet.CLOSE_CURSORS_AT_COMMIT = " +
+        ResultSet.CLOSE_CURSORS_AT_COMMIT);
+
+    System.out.println("Default cursor holdability: " +
+        dbMetaData.getResultSetHoldability());
+
+    System.out.println("Supports HOLD_CURSORS_OVER_COMMIT? " +
+        dbMetaData.supportsResultSetHoldability(
+            ResultSet.HOLD_CURSORS_OVER_COMMIT));
+
+    System.out.println("Supports CLOSE_CURSORS_AT_COMMIT? " +
+        dbMetaData.supportsResultSetHoldability(
+            ResultSet.CLOSE_CURSORS_AT_COMMIT));
+}
+```
+
+#### Retrieving Column Values from Rows
+
+The `ResultSet` interface declares getter methods (for example, `getBoolean` and `getLong`) for retrieving column values from the current row. You can retrieve values using either the index number of the column or the alias or name of the column. The column index is usually more efficient. Columns are numbered from 1. For maximum portability, result set columns within each row should be read in left-to-right order, and each column should be read only once.
+
+For example, the following method, `CoffeesTable.alternateViewTable`, retrieves column values by number:
+
+```java
+public static void alternateViewTable(Connection con)
+    throws SQLException {
+
+    Statement stmt = null;
+    String query =
+        "select COF_NAME, SUP_ID, PRICE, " +
+        "SALES, TOTAL from COFFEES";
+
+    try {
+        stmt = con.createStatement();
+        ResultSet rs = stmt.executeQuery(query);
+        while (rs.next()) {
+            String coffeeName = rs.getString(1);
+            int supplierID = rs.getInt(2);
+            float price = rs.getFloat(3);
+            int sales = rs.getInt(4);
+            int total = rs.getInt(5);
+            System.out.println(coffeeName + "\t" + supplierID +
+                               "\t" + price + "\t" + sales +
+                               "\t" + total);
+        }
+    } catch (SQLException e ) {
+        JDBCTutorialUtilities.printSQLException(e);
+    } finally {
+        if (stmt != null) { stmt.close(); }
+    }
+}
+```
+
+Strings used as input to getter methods are case-insensitive. When a getter method is called with a string and more than one column has the same alias or name as the string, the value of the first matching column is returned. The option to use a string as opposed to an integer is designed to be used when column aliases and names are used in the SQL query that generated the result set. For columns that are *not* explicitly named in the query (for example, `select * from COFFEES`) it is best to use column numbers. If column names are used, the developer should guarantee that they uniquely refer to the intended columns by using column aliases. A column alias effectively renames the column of a result set. To specify a column alias, use the SQL `AS` clause in the `SELECT` statement.
+
+The getter method of the appropriate type retrieves the value in each column. For example, in the method `CoffeeTables.viewTable`, the first column in each row of the `ResultSet rs` is `COF_NAME`, which stores a value of SQL type `VARCHAR`. The method for retrieving a value of SQL type `VARCHAR` is `getString`. The second column in each row stores a value of SQL type `INTEGER`, and the method for retrieving values of that type is `getInt`.
+
+Note that although the method `getString` is recommended for retrieving the SQL types `CHAR` and `VARCHAR`, it is possible to retrieve any of the basic SQL types with it. Getting all values with `getString` can be very useful, but it also has its limitations. For instance, if it is used to retrieve a numeric type, `getString` converts the numeric value to a Java `String` object, and the value has to be converted back to a numeric type before it can be operated on as a number. In cases where the value is treated as a string anyway, there is no drawback. Furthermore, if you want an application to retrieve values of any standard SQL type other than SQL3 types, use the `getString` method.
+
+#### Cursors
+
+As mentioned previously, you access the data in a `ResultSet` object through a cursor, which points to one row in the `ResultSet` object. However, when a `ResultSet` object is first created, the cursor is positioned before the first row. The method `CoffeeTables.viewTable` moves the cursor by calling the `ResultSet.next` method. There are other methods available to move the cursor:
+
+- `next`: Moves the cursor forward one row. Returns `true` if the cursor is now positioned on a row and `false` if the cursor is positioned after the last row.
+- `previous`: Moves the cursor backward one row. Returns `true` if the cursor is now positioned on a row and `false` if the cursor is positioned before the first row.
+- `first`: Moves the cursor to the first row in the ResultSet object. Returns true if the cursor is now positioned on the first row and false if the ResultSet object does not contain any rows.
+- `last`: Moves the cursor to the last row in the `ResultSet` object. Returns `true` if the cursor is now positioned on the last row and `false` if the ResultSet object does not contain any rows.
+- `beforeFirst`: Positions the cursor at the start of the `ResultSet` object, before the first row. If the `ResultSet` object does not contain any rows, this method has no effect.
+- `afterLast`: Positions the cursor at the end of the `ResultSet` object, after the last row. If the `ResultSet` object does not contain any rows, this method has no effect.
+- `relative(int rows)`: Moves the cursor relative to its current position.
+- `absolute(int row)`: Positions the cursor on the row specified by the parameter row.
+
+Note that the default sensitivity of a `ResultSet` is `TYPE_FORWARD_ONLY`, which means that it cannot be scrolled; you cannot call any of these methods that move the cursor, except `next`, if your `ResultSet` cannot be scrolled. The method `CoffeesTable.modifyPrices`, described in the following section, demonstrates how you can move the cursor of a `ResultSet`.
+
+#### Updating Rows in ResultSet Objects
+
+You cannot update a default `ResultSet` object, and you can only move its cursor forward. However, you can create `ResultSet` objects that can be scrolled (the cursor can move backwards or move to an absolute position) and updated.
+
+The following method, `CoffeesTable.modifyPrices`, multiplies the `PRICE` column of each row by the argument `percentage`:
+
+```java
+public void modifyPrices(float percentage) throws SQLException {
+
+    Statement stmt = null;
+    try {
+        stmt = con.createStatement();
+        stmt = con.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE,
+                   ResultSet.CONCUR_UPDATABLE);
+        ResultSet uprs = stmt.executeQuery(
+            "SELECT * FROM " + dbName + ".COFFEES");
+
+        while (uprs.next()) {
+            float f = uprs.getFloat("PRICE");
+            uprs.updateFloat( "PRICE", f * percentage);
+            uprs.updateRow();
+        }
+
+    } catch (SQLException e ) {
+        JDBCTutorialUtilities.printSQLException(e);
+    } finally {
+        if (stmt != null) { stmt.close(); }
+    }
+}
+```
+
+The field `ResultSet.TYPE_SCROLL_SENSITIVE` creates a `ResultSet` object whose cursor can move both forward and backward relative to the current position and to an absolute position. The field `ResultSet.CONCUR_UPDATABLE` creates a `ResultSet` object that can be updated. See the `ResultSet` Javadoc for other fields you can specify to modify the behavior of `ResultSet` objects.
+
+The method `ResultSet.updateFloat` updates the specified column (in this example, `PRICE` with the specified `float` value in the row where the cursor is positioned. `ResultSet` contains various updater methods that enable you to update column values of various data types. However, none of these updater methods modifies the database; you must call the method `ResultSet.updateRow` to update the database.
+
+#### Using Statement Objects for Batch Updates
+
+`Statement`, `PreparedStatement` and `CallableStatement` objects have a list of commands that is associated with them. This list may contain statements for updating, inserting, or deleting a row; and it may also contain DDL statements such as `CREATE TABLE` and `DROP TABLE`. It cannot, however, contain a statement that would produce a `ResultSet` object, such as a `SELECT` statement. In other words, the list can contain only statements that produce an update count.
+
+The list, which is associated with a `Statement` object at its creation, is initially empty. You can add SQL commands to this list with the method `addBatch` and empty it with the method `clearBatch`. When you have finished adding statements to the list, call the method `executeBatch` to send them all to the database to be executed as a unit, or batch.
+
+For example, the following method `CoffeesTable.batchUpdate` adds four rows to the `COFFEES` table with a batch update:
+
+```java
+public void batchUpdate() throws SQLException {
+
+    Statement stmt = null;
+    try {
+        this.con.setAutoCommit(false);
+        stmt = this.con.createStatement();
+
+        stmt.addBatch(
+            "INSERT INTO COFFEES " +
+            "VALUES('Amaretto', 49, 9.99, 0, 0)");
+
+        stmt.addBatch(
+            "INSERT INTO COFFEES " +
+            "VALUES('Hazelnut', 49, 9.99, 0, 0)");
+
+        stmt.addBatch(
+            "INSERT INTO COFFEES " +
+            "VALUES('Amaretto_decaf', 49, " +
+            "10.99, 0, 0)");
+
+        stmt.addBatch(
+            "INSERT INTO COFFEES " +
+            "VALUES('Hazelnut_decaf', 49, " +
+            "10.99, 0, 0)");
+
+        int [] updateCounts = stmt.executeBatch();
+        this.con.commit();
+
+    } catch(BatchUpdateException b) {
+        JDBCTutorialUtilities.printBatchUpdateException(b);
+    } catch(SQLException ex) {
+        JDBCTutorialUtilities.printSQLException(ex);
+    } finally {
+        if (stmt != null) { stmt.close(); }
+        this.con.setAutoCommit(true);
+    }
+}
+```
+
+The following line disables auto-commit mode for the `Connection` object con so that the transaction will not be automatically committed or rolled back when the method `executeBatch` is called.
+
+```java
+this.con.setAutoCommit(false);
+```
+
+To allow for correct error handling, you should always disable auto-commit mode before beginning a batch update.
+
+The method `Statement.addBatch` adds a command to the list of commands associated with the `Statement` object `stmt`. In this example, these commands are all `INSERT INTO` statements, each one adding a row consisting of five column values. The values for the columns `COF_NAME` and `PRICE` are the name of the coffee and its price, respectively. The second value in each row is 49 because that is the identification number for the supplier, Superior Coffee. The last two values, the entries for the columns `SALE`S and `TOTAL`, all start out being zero because there have been no sales yet. (`SALES` is the number of pounds of this row's coffee sold in the current week; `TOTAL` is the total of all the cumulative sales of this coffee.)
+
+The following line sends the four SQL commands that were added to its list of commands to the database to be executed as a batch:
+
+```java
+int [] updateCounts = stmt.executeBatch();
+```
+
+Note that `stmt` uses the method `executeBatch` to send the batch of insertions, not the method `executeUpdate`, which sends only one command and returns a single update count. The DBMS executes the commands in the order in which they were added to the list of commands, so it will first add the row of values for Amaretto, then add the row for Hazelnut, then Amaretto decaf, and finally Hazelnut decaf. If all four commands execute successfully, the DBMS will return an update count for each command in the order in which it was executed. The update counts that indicate how many rows were affected by each command are stored in the array `updateCounts`.
+
+If all four of the commands in the batch are executed successfully, `updateCounts` will contain four values, all of which are 1 because an insertion affects one row. The list of commands associated with `stmt` will now be empty because the four commands added previously were sent to the database when `stmt` called the method `executeBatch`. You can at any time explicitly empty this list of commands with the method `clearBatch`.
+
+The `Connection.commit` method makes the batch of updates to the `COFFEES` table permanent. This method needs to be called explicitly because the auto-commit mode for this connection was disabled previously.
+
+The following line enables auto-commit mode for the current `Connection` object.
+
+```java
+this.con.setAutoCommit(true);
+```
+
+Now each statement in the example will automatically be committed after it is executed, and it no longer needs to invoke the method `commit`.
+
+##### Performing Parameterized Batch Update
+
+It is also possible to have a parameterized batch update, as shown in the following code fragment, where con is a `Connection` object:
+
+```java
+con.setAutoCommit(false);
+PreparedStatement pstmt = con.prepareStatement(
+                              "INSERT INTO COFFEES VALUES( " +
+                              "?, ?, ?, ?, ?)");
+pstmt.setString(1, "Amaretto");
+pstmt.setInt(2, 49);
+pstmt.setFloat(3, 9.99);
+pstmt.setInt(4, 0);
+pstmt.setInt(5, 0);
+pstmt.addBatch();
+
+pstmt.setString(1, "Hazelnut");
+pstmt.setInt(2, 49);
+pstmt.setFloat(3, 9.99);
+pstmt.setInt(4, 0);
+pstmt.setInt(5, 0);
+pstmt.addBatch();
+
+// ... and so on for each new
+// type of coffee
+
+int [] updateCounts = pstmt.executeBatch();
+con.commit();
+con.setAutoCommit(true);
+```
+
+##### Handling Batch Update Exceptions
+
+You will get a `BatchUpdateException` when you call the method `executeBatch` if (1) one of the SQL statements you added to the batch produces a result set (usually a query) or (2) one of the SQL statements in the batch does not execute successfully for some other reason.
+
+You should not add a query (a `SELECT` statement) to a batch of SQL commands because the method `executeBatch`, which returns an array of update counts, expects an update count from each SQL statement that executes successfully. This means that only commands that return an update count (commands such as `INSERT INTO, UPDATE, DELET`E) or that return 0 (such as `CREATE TABLE, DROP TABLE, ALTER TABLE`) can be successfully executed as a batch with the `executeBatch` method.
+
+A `BatchUpdateException` contains an array of update counts that is similar to the array returned by the method `executeBatch`. In both cases, the update counts are in the same order as the commands that produced them. This tells you how many commands in the batch executed successfully and which ones they are. For example, if five commands executed successfully, the array will contain five numbers: the first one being the update count for the first command, the second one being the update count for the second command, and so on.
+
+`BatchUpdateException` is derived from `SQLException`. This means that you can use all of the methods available to an `SQLException` object with it. The following method, `JDBCTutorialUtilities.printBatchUpdateException` prints all of the `SQLException` information plus the update counts contained in a `BatchUpdateException` object. Because `BatchUpdateException.getUpdateCounts` returns an array of `int`, the code uses a `for` loop to print each of the update counts:
+
+```java
+public static void printBatchUpdateException(BatchUpdateException b) {
+
+    System.err.println("----BatchUpdateException----");
+    System.err.println("SQLState:  " + b.getSQLState());
+    System.err.println("Message:  " + b.getMessage());
+    System.err.println("Vendor:  " + b.getErrorCode());
+    System.err.print("Update counts:  ");
+    int [] updateCounts = b.getUpdateCounts();
+
+    for (int i = 0; i < updateCounts.length; i++) {
+        System.err.print(updateCounts[i] + "   ");
+    }
+}
+```
+
+#### Inserting Rows in ResultSet Objects
+
+**Note**: Not all JDBC drivers support inserting new rows with the `ResultSet` interface. If you attempt to insert a new row and your JDBC driver database does not support this feature, a `SQLFeatureNotSupportedException` exception is thrown.
+
+The following method, `CoffeesTable.insertRow`, inserts a row into the `COFFEES` through a `ResultSet` object:
+
+```java
+public void insertRow(String coffeeName, int supplierID,
+                      float price, int sales, int total)
+    throws SQLException {
+
+    Statement stmt = null;
+    try {
+        stmt = con.createStatement(
+            ResultSet.TYPE_SCROLL_SENSITIVE
+            ResultSet.CONCUR_UPDATABLE);
+
+        ResultSet uprs = stmt.executeQuery(
+            "SELECT * FROM " + dbName +
+            ".COFFEES");
+
+        uprs.moveToInsertRow();
+        uprs.updateString("COF_NAME", coffeeName);
+        uprs.updateInt("SUP_ID", supplierID);
+        uprs.updateFloat("PRICE", price);
+        uprs.updateInt("SALES", sales);
+        uprs.updateInt("TOTAL", total);
+
+        uprs.insertRow();
+        uprs.beforeFirst();
+    } catch (SQLException e ) {
+        JDBCTutorialUtilities.printSQLException(e);
+    } finally {
+        if (stmt != null) { stmt.close(); }
+    }
+}
+```
+
+This example calls the `Connection.createStatement` method with two arguments, `ResultSet.TYPE_SCROLL_SENSITIVE` and `ResultSet.CONCUR_UPDATABLE`. The first value enables the cursor of the `ResultSet` object to be moved both forward and backward. The second value, `ResultSet.CONCUR_UPDATABLE`, is required if you want to insert rows into a `ResultSet` object; it specifies that it can be updatable.
+
+The same stipulations for using strings in getter methods also apply to updater methods.
+
+The method `ResultSet.moveToInsertRow` moves the cursor to the insert row. The insert row is a special row associated with an updatable result set. It is essentially a buffer where a new row can be constructed by calling the updater methods prior to inserting the row into the result set. For example, this method calls the method `ResultSet.updateString` to update the insert row's `COF_NAME` column to `Kona`.
+
+The method `ResultSet.insertRow` inserts the contents of the insert row into the `ResultSet` object and into the database.
+
+**Note**: After inserting a row with the `ResultSet.insertRow`, you should move the cursor to a row other than the insert row. For example, this example moves it to before the first row in the result set with the method `ResultSet.beforeFirst`. Unexpected results can occur if another part of your application uses the same result set and the cursor is still pointing to the insert row.
