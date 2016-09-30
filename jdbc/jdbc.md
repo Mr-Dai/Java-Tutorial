@@ -2560,3 +2560,1157 @@ The method `ResultSet.moveToInsertRow` moves the cursor to the insert row. The i
 The method `ResultSet.insertRow` inserts the contents of the insert row into the `ResultSet` object and into the database.
 
 **Note**: After inserting a row with the `ResultSet.insertRow`, you should move the cursor to a row other than the insert row. For example, this example moves it to before the first row in the result set with the method `ResultSet.beforeFirst`. Unexpected results can occur if another part of your application uses the same result set and the cursor is still pointing to the insert row.
+
+<h3 id="using-prepared-statements">Using Prepared Statements</h3>
+
+#### Overview of Prepared Statements
+
+Sometimes it is more convenient to use a `PreparedStatement` object for sending SQL statements to the database. This special type of statement is derived from the more general class, `Statement`, that you already know.
+
+If you want to execute a `Statement` object many times, it usually reduces execution time to use a `PreparedStatement` object instead.
+
+The main feature of a `PreparedStatement` object is that, unlike a `Statement` object, it is given a SQL statement when it is created. The advantage to this is that in most cases, this SQL statement is sent to the DBMS right away, where it is compiled. As a result, the `PreparedStatement` object contains not just a SQL statement, but a SQL statement that has been precompiled. This means that when the `PreparedStatement` is executed, the DBMS can just run the `PreparedStatement` SQL statement without having to compile it first.
+
+Although `PreparedStatement` objects can be used for SQL statements with no parameters, you probably use them most often for SQL statements that take parameters. The advantage of using SQL statements that take parameters is that you can use the same statement and supply it with different values each time you execute it. Examples of this are in the following sections.
+
+The following method, `CoffeesTable.updateCoffeeSales`, stores the number of pounds of coffee sold in the current week in the `SALES` column for each type of coffee, and updates the total number of pounds of coffee sold in the `TOTAL` column for each type of coffee:
+
+```java
+public void updateCoffeeSales(HashMap<String, Integer> salesForWeek)
+    throws SQLException {
+
+    PreparedStatement updateSales = null;
+    PreparedStatement updateTotal = null;
+
+    String updateString =
+        "update " + dbName + ".COFFEES " +
+        "set SALES = ? where COF_NAME = ?";
+
+    String updateStatement =
+        "update " + dbName + ".COFFEES " +
+        "set TOTAL = TOTAL + ? " +
+        "where COF_NAME = ?";
+
+    try {
+        con.setAutoCommit(false);
+        updateSales = con.prepareStatement(updateString);
+        updateTotal = con.prepareStatement(updateStatement);
+
+        for (Map.Entry<String, Integer> e : salesForWeek.entrySet()) {
+            updateSales.setInt(1, e.getValue().intValue());
+            updateSales.setString(2, e.getKey());
+            updateSales.executeUpdate();
+            updateTotal.setInt(1, e.getValue().intValue());
+            updateTotal.setString(2, e.getKey());
+            updateTotal.executeUpdate();
+            con.commit();
+        }
+    } catch (SQLException e ) {
+        JDBCTutorialUtilities.printSQLException(e);
+        if (con != null) {
+            try {
+                System.err.print("Transaction is being rolled back");
+                con.rollback();
+            } catch(SQLException excep) {
+                JDBCTutorialUtilities.printSQLException(excep);
+            }
+        }
+    } finally {
+        if (updateSales != null) {
+            updateSales.close();
+        }
+        if (updateTotal != null) {
+            updateTotal.close();
+        }
+        con.setAutoCommit(true);
+    }
+}
+```
+
+#### Creating a PreparedStatement Object
+
+The following creates a `PreparedStatement` object that takes two input parameters:
+
+```java
+String updateString =
+    "update " + dbName + ".COFFEES " +
+    "set SALES = ? where COF_NAME = ?";
+updateSales = con.prepareStatement(updateString);
+```
+
+#### Supplying Values for PreparedStatement Parameters
+
+You must supply values in place of the question mark placeholders (if there are any) before you can execute a `PreparedStatement` object. Do this by calling one of the setter methods defined in the `PreparedStatement` class. The following statements supply the two question mark placeholders in the `PreparedStatement` named `updateSales`:
+
+```java
+updateSales.setInt(1, e.getValue().intValue());
+updateSales.setString(2, e.getKey());
+```
+
+The first argument for each of these setter methods specifies the question mark placeholder. In this example, `setInt` specifies the first placeholder and `setString` specifies the second placeholder.
+
+After a parameter has been set with a value, it retains that value until it is reset to another value, or the method `clearParameters` is called. Using the `PreparedStatement` object `updateSales`, the following code fragment illustrates reusing a prepared statement after resetting the value of one of its parameters and leaving the other one the same:
+
+```java
+// changes SALES column of French Roast
+// row to 100
+
+updateSales.setInt(1, 100);
+updateSales.setString(2, "French_Roast");
+updateSales.executeUpdate();
+
+// changes SALES column of Espresso row to 100
+// (the first parameter stayed 100, and the second
+// parameter was reset to "Espresso")
+
+updateSales.setString(2, "Espresso");
+updateSales.executeUpdate();
+```
+
+##### Using Loops to Set Values
+
+You can often make coding easier by using a `for` loop or a `while` loop to set values for input parameters.
+
+The `CoffeesTable.updateCoffeeSales` method uses a for-each loop to repeatedly set values in the `PreparedStatement` objects `updateSales` and `updateTotal`:
+
+```java
+for (Map.Entry<String, Integer> e : salesForWeek.entrySet()) {
+
+    updateSales.setInt(1, e.getValue().intValue());
+    updateSales.setString(2, e.getKey());
+
+    // ...
+}
+```
+
+The method `CoffeesTable.updateCoffeeSales` takes one argument, HashMap. Each element in the `HashMap` argument contains the name of one type of coffee and the number of pounds of that type of coffee sold during the current week. The for-each loop iterates through each element of the `HashMap` argument and sets the appropriate question mark placeholders in `updateSales` and `updateTotal`.
+
+#### Executing PreparedStatement Objects
+
+As with `Statement` objects, to execute a `PreparedStatement` object, call an execute statement: `executeQuery` if the query returns only one `ResultSet` (such as a `SELECT` SQL statement), `executeUpdate` if the query does not return a `ResultSet` (such as an `UPDATE` SQL statement), or `execute` if the query might return more than one `ResultSet` object. Both `PreparedStatement` objects in `CoffeesTable.updateCoffeeSales` contain `UPDATE` SQL statements, so both are executed by calling `executeUpdate`:
+
+```java
+updateSales.setInt(1, e.getValue().intValue());
+updateSales.setString(2, e.getKey());
+updateSales.executeUpdate();
+
+updateTotal.setInt(1, e.getValue().intValue());
+updateTotal.setString(2, e.getKey());
+updateTotal.executeUpdate();
+con.commit();
+```
+
+No arguments are supplied to `executeUpdate` when they are used to execute `updateSales` and `updateTotals`; both `PreparedStatement` objects already contain the SQL statement to be executed.
+
+**Note**: At the beginning of `CoffeesTable.updateCoffeeSales`, the auto-commit mode is set to false:
+
+```java
+con.setAutoCommit(false);
+```
+
+Consequently, no SQL statements are committed until the method commit is called. For more information about the auto-commit mode, see [Transactions](#using-transactions).
+
+##### Return Values for the executeUpdate Method
+
+Whereas `executeQuery` returns a `ResultSet` object containing the results of the query sent to the DBMS, the return value for `executeUpdate` is an `int` value that indicates how many rows of a table were updated. For instance, the following code shows the return value of `executeUpdate` being assigned to the variable `n`:
+
+```java
+updateSales.setInt(1, 50);
+updateSales.setString(2, "Espresso");
+int n = updateSales.executeUpdate();
+// n = 1 because one row had a change in it
+```
+
+The table `COFFEES` is updated; the value 50 replaces the value in the column `SALES` in the row for `Espresso`. That update affects one row in the table, so `n` is equal to 1.
+
+When the method `executeUpdate` is used to execute a DDL (data definition language) statement, such as in creating a table, it returns the `int` value of 0. Consequently, in the following code fragment, which executes the DDL statement used to create the table `COFFEES`, `n` is assigned a value of 0:
+
+```java
+// n = 0
+int n = executeUpdate(createTableCoffees); 
+```
+
+Note that when the return value for `executeUpdate` is 0, it can mean one of two things:
+
+- The statement executed was an update statement that affected zero rows.
+- The statement executed was a DDL statement.
+
+<h3 id="using-transactions">Using Transactions</h3>
+
+There are times when you do not want one statement to take effect unless another one completes. For example, when the proprietor of The Coffee Break updates the amount of coffee sold each week, the proprietor will also want to update the total amount sold to date. However, the amount sold per week and the total amount sold should be updated at the same time; otherwise, the data will be inconsistent. The way to be sure that either both actions occur or neither action occurs is to use a transaction. A transaction is a set of one or more statements that is executed as a unit, so either all of the statements are executed, or none of the statements is executed.
+
+#### Disabling Auto-Commit Mode
+
+When a connection is created, it is in auto-commit mode. This means that each individual SQL statement is treated as a transaction and is automatically committed right after it is executed. (To be more precise, the default is for a SQL statement to be committed when it is completed, not when it is executed. A statement is completed when all of its result sets and update counts have been retrieved. In almost all cases, however, a statement is completed, and therefore committed, right after it is executed.)
+
+The way to allow two or more statements to be grouped into a transaction is to disable the auto-commit mode. This is demonstrated in the following code, where con is an active connection:
+
+```java
+con.setAutoCommit(false);
+```
+
+#### Committing Transactions
+
+After the auto-commit mode is disabled, no SQL statements are committed until you call the method `commit` explicitly. All statements executed after the previous call to the method `commit` are included in the current transaction and committed together as a unit. The following method, `CoffeesTable.updateCoffeeSales`, in which `con` is an active connection, illustrates a transaction:
+
+```java
+public void updateCoffeeSales(HashMap<String, Integer> salesForWeek)
+    throws SQLException {
+
+    PreparedStatement updateSales = null;
+    PreparedStatement updateTotal = null;
+
+    String updateString =
+        "update " + dbName + ".COFFEES " +
+        "set SALES = ? where COF_NAME = ?";
+
+    String updateStatement =
+        "update " + dbName + ".COFFEES " +
+        "set TOTAL = TOTAL + ? " +
+        "where COF_NAME = ?";
+
+    try {
+        con.setAutoCommit(false);
+        updateSales = con.prepareStatement(updateString);
+        updateTotal = con.prepareStatement(updateStatement);
+
+        for (Map.Entry<String, Integer> e : salesForWeek.entrySet()) {
+            updateSales.setInt(1, e.getValue().intValue());
+            updateSales.setString(2, e.getKey());
+            updateSales.executeUpdate();
+            updateTotal.setInt(1, e.getValue().intValue());
+            updateTotal.setString(2, e.getKey());
+            updateTotal.executeUpdate();
+            con.commit();
+        }
+    } catch (SQLException e ) {
+        JDBCTutorialUtilities.printSQLException(e);
+        if (con != null) {
+            try {
+                System.err.print("Transaction is being rolled back");
+                con.rollback();
+            } catch(SQLException excep) {
+                JDBCTutorialUtilities.printSQLException(excep);
+            }
+        }
+    } finally {
+        if (updateSales != null) {
+            updateSales.close();
+        }
+        if (updateTotal != null) {
+            updateTotal.close();
+        }
+        con.setAutoCommit(true);
+    }
+}
+```
+
+In this method, the auto-commit mode is disabled for the connection `con`, which means that the two prepared statements `updateSales` and `updateTotal` are committed together when the method `commit` is called. Whenever the `commit` method is called (either automatically when auto-commit mode is enabled or explicitly when it is disabled), all changes resulting from statements in the transaction are made permanent. In this case, that means that the `SALES` and `TOTAL` columns for Colombian coffee have been changed to `50` (if `TOTAL` had been `0` previously) and will retain this value until they are changed with another update statement.
+
+The statement `con.setAutoCommit(true)` enables auto-commit mode, which means that each statement is once again committed automatically when it is completed. Then, you are back to the default state where you do not have to call the method `commit` yourself. It is advisable to disable the auto-commit mode only during the transaction mode. This way, you avoid holding database locks for multiple statements, which increases the likelihood of conflicts with other users.
+
+#### Using Transactions to Preserve Data Integrity
+
+In addition to grouping statements together for execution as a unit, transactions can help to preserve the integrity of the data in a table. For instance, imagine that an employee was supposed to enter new coffee prices in the table `COFFEES` but delayed doing it for a few days. In the meantime, prices rose, and today the owner is in the process of entering the higher prices. The employee finally gets around to entering the now outdated prices at the same time that the owner is trying to update the table. After inserting the outdated prices, the employee realizes that they are no longer valid and calls the `Connection` method `rollback` to undo their effects. (The method `rollback` aborts a transaction and restores values to what they were before the attempted update.) At the same time, the owner is executing a `SELECT` statement and printing the new prices. In this situation, it is possible that the owner will print a price that had been rolled back to its previous value, making the printed price incorrect.
+
+This kind of situation can be avoided by using transactions, providing some level of protection against conflicts that arise when two users access data at the same time.
+
+To avoid conflicts during a transaction, a DBMS uses locks, mechanisms for blocking access by others to the data that is being accessed by the transaction. (Note that in auto-commit mode, where each statement is a transaction, locks are held for only one statement.) After a lock is set, it remains in force until the transaction is committed or rolled back. For example, a DBMS could lock a row of a table until updates to it have been committed. The effect of this lock would be to prevent a user from getting a dirty read, that is, reading a value before it is made permanent. (Accessing an updated value that has not been committed is considered a *dirty read* because it is possible for that value to be rolled back to its previous value. If you read a value that is later rolled back, you will have read an invalid value.)
+
+How locks are set is determined by what is called a transaction isolation level, which can range from not supporting transactions at all to supporting transactions that enforce very strict access rules.
+
+One example of a transaction isolation level is `TRANSACTION_READ_COMMITTED`, which will not allow a value to be accessed until after it has been committed. In other words, if the transaction isolation level is set to `TRANSACTION_READ_COMMITTED`, the DBMS does not allow dirty reads to occur. The interface Connection includes five values that represent the transaction isolation levels you can use in JDBC:
+
+<table summary="Transaction isolation levels">
+<tr>
+<th id="h1">Isolation Level</th>
+<th id="h2">Transactions</th>
+<th id="h3">Dirty Reads</th>
+<th id="h4">Non-Repeatable Reads</th>
+<th id="h5">Phantom Reads</th>
+</tr>
+<tr>
+<td headers="h1"><code>TRANSACTION_NONE</code></td>
+<td headers="h2">Not supported</td>
+<td headers="h3"><em>Not applicable</em></td>
+<td headers="h4"><em>Not applicable</em></td>
+<td headers="h5"><em>Not applicable</em></td>
+</tr>
+<tr>
+<td headers="h1"><code>TRANSACTION_READ_COMMITTED</code></td>
+<td headers="h2">Supported</td>
+<td headers="h3">Prevented</td>
+<td headers="h4">Allowed</td>
+<td headers="h5">Allowed</td>
+</tr>
+<tr>
+<td headers="h1"><code>TRANSACTION_READ_UNCOMMITTED</code></td>
+<td headers="h2">Supported</td>
+<td headers="h3">Allowed</td>
+<td headers="h4">Allowed</td>
+<td headers="h5">Allowed</td>
+</tr>
+<tr>
+<td headers="h1"><code>TRANSACTION_REPEATABLE_READ</code></td>
+<td headers="h2">Supported</td>
+<td headers="h3">Prevented</td>
+<td headers="h4">Prevented</td>
+<td headers="h5">Allowed</td>
+</tr>
+<tr>
+<td headers="h1"><code>TRANSACTION_SERIALIZABLE</code></td>
+<td headers="h2">Supported</td>
+<td headers="h3">Prevented</td>
+<td headers="h4">Prevented</td>
+<td headers="h5">Prevented</td>
+</tr>
+</table>
+
+A *non-repeatable read* occurs when transaction A retrieves a row, transaction B subsequently updates the row, and transaction A later retrieves the same row again. Transaction A retrieves the same row twice but sees different data.
+
+A *phantom read* occurs when transaction A retrieves a set of rows satisfying a given condition, transaction B subsequently inserts or updates a row such that the row now meets the condition in transaction A, and transaction A later repeats the conditional retrieval. Transaction A now sees an additional row. This row is referred to as a phantom.
+
+Usually, you do not need to do anything about the transaction isolation level; you can just use the default one for your DBMS. The default transaction isolation level depends on your DBMS. For example, for Java DB, it is `TRANSACTION_READ_COMMITTED`. JDBC allows you to find out what transaction isolation level your DBMS is set to (using the `Connection` method `getTransactionIsolation`) and also allows you to set it to another level (using the Connection method setTransactionIsolation).
+
+**Note**: A JDBC driver might not support all transaction isolation levels. If a driver does not support the isolation level specified in an invocation of `setTransactionIsolation`, the driver can substitute a higher, more restrictive transaction isolation level. If a driver cannot substitute a higher transaction level, it throws a `SQLException`. Use the method `DatabaseMetaData.supportsTransactionIsolationLevel` to determine whether or not the driver supports a given level.
+
+#### Setting and Rolling Back to Savepoints
+
+The method `Connection.setSavepoint`, sets a `Savepoint` object within the current transaction. The `Connection.rollback` method is overloaded to take a `Savepoint` argument.
+
+The following method, `CoffeesTable.modifyPricesByPercentage`, raises the price of a particular coffee by a percentage, `priceModifier`. However, if the new price is greater than a specified price, `maximumPrice`, then the price is reverted to the original price:
+
+```java
+public void modifyPricesByPercentage(
+    String coffeeName,
+    float priceModifier,
+    float maximumPrice)
+    throws SQLException {
+    
+    con.setAutoCommit(false);
+
+    Statement getPrice = null;
+    Statement updatePrice = null;
+    ResultSet rs = null;
+    String query =
+        "SELECT COF_NAME, PRICE FROM COFFEES " +
+        "WHERE COF_NAME = '" + coffeeName + "'";
+
+    try {
+        Savepoint save1 = con.setSavepoint();
+        getPrice = con.createStatement(
+                       ResultSet.TYPE_SCROLL_INSENSITIVE,
+                       ResultSet.CONCUR_READ_ONLY);
+        updatePrice = con.createStatement();
+
+        if (!getPrice.execute(query)) {
+            System.out.println(
+                "Could not find entry " +
+                "for coffee named " +
+                coffeeName);
+        } else {
+            rs = getPrice.getResultSet();
+            rs.first();
+            float oldPrice = rs.getFloat("PRICE");
+            float newPrice = oldPrice + (oldPrice * priceModifier);
+            System.out.println(
+                "Old price of " + coffeeName +
+                " is " + oldPrice);
+
+            System.out.println(
+                "New price of " + coffeeName +
+                " is " + newPrice);
+
+            System.out.println(
+                "Performing update...");
+
+            updatePrice.executeUpdate(
+                "UPDATE COFFEES SET PRICE = " +
+                newPrice +
+                " WHERE COF_NAME = '" +
+                coffeeName + "'");
+
+            System.out.println(
+                "\nCOFFEES table after " +
+                "update:");
+
+            CoffeesTable.viewTable(con);
+
+            if (newPrice > maximumPrice) {
+                System.out.println(
+                    "\nThe new price, " +
+                    newPrice +
+                    ", is greater than the " +
+                    "maximum price, " +
+                    maximumPrice +
+                    ". Rolling back the " +
+                    "transaction...");
+
+                con.rollback(save1);
+
+                System.out.println(
+                    "\nCOFFEES table " +
+                    "after rollback:");
+
+                CoffeesTable.viewTable(con);
+            }
+            con.commit();
+        }
+    } catch (SQLException e) {
+        JDBCTutorialUtilities.printSQLException(e);
+    } finally {
+        if (getPrice != null) { getPrice.close(); }
+        if (updatePrice != null) {
+            updatePrice.close();
+        }
+        con.setAutoCommit(true);
+    }
+}
+```
+
+The following statement specifies that the cursor of the `ResultSet` object generated from the `getPrice` query is closed when the `commit` method is called. Note that if your DBMs does not support `ResultSet.CLOSE_CURSORS_AT_COMMIT`, then this constant is ignored:
+
+```java
+getPrice = con.prepareStatement(query, ResultSet.CLOSE_CURSORS_AT_COMMIT);
+```
+
+The method begins by creating a Savepoint with the following statement:
+
+```java
+Savepoint save1 = con.setSavepoint();
+```
+
+The method checks if the new price is greater than the `maximumPrice` value. If so, the method rolls back the transaction with the following statement:
+
+```java
+con.rollback(save1);
+```
+
+Consequently, when the method commits the transaction by calling the `Connection.commit` method, it will not commit any rows whose associated `Savepoint` has been rolled back; it will commit all the other updated rows.
+
+#### Releasing Savepoints
+
+The method `Connection.releaseSavepoint` takes a `Savepoint` object as a parameter and removes it from the current transaction.
+
+After a savepoint has been released, attempting to reference it in a rollback operation causes a `SQLException` to be thrown. Any savepoints that have been created in a transaction are automatically released and become invalid when the transaction is committed, or when the entire transaction is rolled back. Rolling a transaction back to a savepoint automatically releases and makes invalid any other savepoints that were created after the savepoint in question.
+
+#### When to Call Method rollback
+
+As mentioned earlier, calling the method `rollback` terminates a transaction and returns any values that were modified to their previous values. If you are trying to execute one or more statements in a transaction and get a `SQLException`, call the method `rollback` to end the transaction and start the transaction all over again. That is the only way to know what has been committed and what has not been committed. Catching a `SQLException` tells you that something is wrong, but it does not tell you what was or was not committed. Because you cannot count on the fact that nothing was committed, calling the method `rollback` is the only way to be certain.
+
+The method `CoffeesTable.updateCoffeeSales` demonstrates a transaction and includes a `catch` block that invokes the method `rollback`. If the application continues and uses the results of the transaction, this call to the `rollback` method in the `catch` block prevents the use of possibly incorrect data.
+
+<h3 id="using-rowset-objects">Using RowSet Objects</h3>
+
+A JDBC `RowSet` object holds tabular data in a way that makes it more flexible and easier to use than a result set.
+
+Oracle has defined five `RowSet` interfaces for some of the more popular uses of a `RowSet`, and standard reference are available for these `RowSet` interfaces. In this tutorial you will learn how to use these reference implementations.
+
+These versions of the `RowSet` interface and their implementations have been provided as a convenience for programmers. Programmers are free to write their own versions of the `javax.sql.RowSet` interface, to extend the implementations of the five `RowSet` interfaces, or to write their own implementations. However, many programmers will probably find that the standard reference implementations already fit their needs and will use them as is.
+
+This section introduces you to the `RowSet` interface and the following interfaces that extend this interface:
+
+- `JdbcRowSet`
+- `CachedRowSet`
+- `WebRowSet`
+- `JoinRowSet`
+- `FilteredRowSet`
+
+#### What Can RowSet Objects Do?
+
+All `RowSet` objects are derived from the `ResultSet` interface and therefore share its capabilities. What makes JDBC `RowSet` objects special is that they add these new capabilities:
+
+- Function as JavaBeans Component
+- Add Scrollability or Updatability
+
+##### Function as JavaBeans Component
+
+All `RowSet` objects are JavaBeans components. This means that they have the following:
+
+- Properties
+- JavaBeans Notification Mechanism
+
+###### Properties
+
+All `RowSet` objects have properties. A property is a field that has corresponding getter and setter methods. Properties are exposed to builder tools (such as those that come with the IDEs JDveloper and Eclipse) that enable you to visually manipulate beans. For more information, see the [Properties](http://docs.oracle.com/javase/tutorial/javabeans/writing/properties.html) lesson in the [JavaBeans](http://docs.oracle.com/javase/tutorial/javabeans/) trail.
+
+###### JavaBeans Notification Mechanism
+
+`RowSet` objects use the JavaBeans event model, in which registered components are notified when certain events occur. For all `RowSet` objects, three events trigger notifications:
+
+- A cursor movement
+- The update, insertion, or deletion of a row
+- A change to the entire `RowSet` contents
+
+The notification of an event goes to all *listeners*, components that have implemented the `RowSetListener` interface and have had themselves added to the `RowSet` object's list of components to be notified when any of the three events occurs.
+
+A listener could be a GUI component such as a bar graph. If the bar graph is tracking data in a `RowSet` object, the listener would want to know the new data values whenever the data changed. The listener would therefore implement the `RowSetListener` methods to define what it will do when a particular event occurs. Then the listener also must be added to the `RowSet` object's list of listeners. The following line of code registers the bar graph component `bg` with the `RowSet` object `rs`.
+
+```java
+rs.addListener(bg);
+```
+
+Now `bg` will be notified each time the cursor moves, a row is changed, or all of `rs` gets new data.
+
+##### Add Scrollability or Updatability
+
+Some DBMSs do not support result sets that can be scrolled (scrollable), and some do not support result sets that can be updated (updatable). If a driver for that DBMS does not add the ability to scroll or update result sets, you can use a `RowSet` object to do it. A `RowSet` object is scrollable and updatable by default, so by populating a `RowSet` object with the contents of a result set, you can effectively make the result set scrollable and updatable.
+
+#### Kinds of RowSet Objects
+
+A `RowSet` object is considered either connected or disconnected. A *connected* `RowSet` object uses a JDBC driver to make a connection to a relational database and maintains that connection throughout its life span. A *disconnected* `RowSet` object makes a connection to a data source only to read in data from a `ResultSet` object or to write data back to the data source. After reading data from or writing data to its data source, the `RowSet` object disconnects from it, thus becoming "disconnected." During much of its life span, a disconnected `RowSet` object has no connection to its data source and operates independently. The next two sections tell you what being connected or disconnected means in terms of what a `RowSet` object can do.
+
+##### Connected RowSet Objects
+
+Only one of the standard `RowSet` implementations is a connected `RowSet` object: `JdbcRowSet`. Always being connected to a database, a `JdbcRowSet` object is most similar to a `ResultSet` object and is often used as a wrapper to make an otherwise non-scrollable and read-only `ResultSet` object scrollable and updatable.
+
+As a JavaBeans component, a `JdbcRowSet` object can be used, for example, in a GUI tool to select a JDBC driver. A `JdbcRowSet` object can be used this way because it is effectively a wrapper for the driver that obtained its connection to the database.
+
+##### Disconnected RowSet Objects
+
+The other four implementations are disconnected `RowSet` implementations. Disconnected `RowSet` objects have all the capabilities of connected `RowSet` objects plus they have the additional capabilities available only to disconnected `RowSet` objects. For example, not having to maintain a connection to a data source makes disconnected `RowSet` objects far more lightweight than a `JdbcRowSet` object or a `ResultSet` object. Disconnected `RowSet` objects are also serializable, and the combination of being both serializable and lightweight makes them ideal for sending data over a network. They can even be used for sending data to thin clients such as PDAs and mobile phones.
+
+The `CachedRowSet` interface defines the basic capabilities available to all disconnected `RowSet` objects. The other three are extensions of the `CachedRowSet` interface, which provide more specialized capabilities. The following information shows how they are related:
+
+A `CachedRowSet` object has all the capabilities of a `JdbcRowSet` object plus it can also do the following:
+
+- Obtain a connection to a data source and execute a query
+- Read the data from the resulting `ResultSet` object and populate itself with that data
+- Manipulate data and make changes to data while it is disconnected
+- Reconnect to the data source to write changes back to it
+- Check for conflicts with the data source and resolve those conflicts
+
+A `WebRowSet` object has all the capabilities of a `CachedRowSet` object plus it can also do the following:
+
+- Write itself as an XML document
+- Read an XML document that describes a `WebRowSet` object
+
+A `JoinRowSet` object has all the capabilities of a `WebRowSet` object (and therefore also those of a `CachedRowSet` object) plus it can also do the following:
+
+- Form the equivalent of a `SQL JOIN` without having to connect to a data source
+
+A `FilteredRowSet` object likewise has all the capabilities of a `WebRowSet` object (and therefore also a `CachedRowSet` object) plus it can also do the following:
+
+- Apply filtering criteria so that only selected data is visible. This is equivalent to executing a query on a `RowSet` object without having to use a query language or connect to a data source.
+
+<h3 id="using-jdbcrowset-objects">Using JdbcRowSet Objects</h3>
+
+A `JdbcRowSet` object is an enhanced `ResultSet` object. It maintains a connection to its data source, just as a `ResultSet` object does. The big difference is that it has a set of properties and a listener notification mechanism that make it a JavaBeans component.
+
+One of the main uses of a `JdbcRowSet` object is to make a `ResultSet` object scrollable and updatable when it does not otherwise have those capabilities.
+
+#### Creating JdbcRowSet Objects
+
+You can create a `JdbcRowSet` object in various ways:
+
+- By using the reference implementation constructor that takes a `ResultSet` object
+- By using the reference implementation constructor that takes a `Connection` object
+- By using the reference implementation default constructor
+- By using an instance of `RowSetFactory`, which is created from the class `RowSetProvider`
+
+**Note**: Alternatively, you can use the constructor from the `JdbcRowSet` implementation of your JDBC driver. However, implementations of the `RowSet` interface will differ from the reference implementation. These implementations will have different names and constructors. For example, the Oracle JDBC driver's implementation of the `JdbcRowSet` interface is named `oracle.jdbc.rowset.OracleJDBCRowSet`.
+
+##### Passing ResultSet Objects
+
+The simplest way to create a `JdbcRowSet` object is to produce a `ResultSet` object and pass it to the `JdbcRowSetImpl` constructor. Doing this not only creates a `JdbcRowSet` object but also populates it with the data in the `ResultSet` object.
+
+**Note**: The `ResultSet` object that is passed to the `JdbcRowSetImpl` constructor must be scrollable.
+
+As an example, the following code fragment uses the `Connection` object `con` to create a `Statement` object, `stmt`, which then executes a query. The query produces the `ResultSet` object `rs`, which is passed to the constructor to create a new `JdbcRowSet` object initialized with the data in `rs`:
+
+```java
+stmt = con.createStatement(
+           ResultSet.TYPE_SCROLL_SENSITIVE,
+           ResultSet.CONCUR_UPDATABLE);
+rs = stmt.executeQuery("select * from COFFEES");
+jdbcRs = new JdbcRowSetImpl(rs);
+```
+
+A `JdbcRowSet` object created with a `ResultSet` object serves as a wrapper for the `ResultSet` object. Because the `RowSet` object `rs` is scrollable and updatable, `jdbcRs` is also scrollable and updatable. If you have run the method `createStatement` without any arguments, `rs` would not be scrollable or updatable, and neither would `jdbcRs`.
+
+##### Passing Connection Objects
+
+The first statement in the following code excerpt from `JdbcRowSetSample` creates a `JdbcRowSet` object that connects to the database with the `Connection` object `con`:
+
+```java
+jdbcRs = new JdbcRowSetImpl(con);
+jdbcRs.setCommand("select * from COFFEES");
+jdbcRs.execute();
+```
+
+The object `jdbcRs` contains no data until you specify a SQL statement with the method `setCommand`, then run the method `execute`.
+
+The object `jdbcRs` is scrollable and updatable; by default, `JdbcRowSet` and all other `RowSet` objects are scrollable and updatable unless otherwise specified. See Default JdbcRowSet Objects for more information about `JdbcRowSet` properties you can specify.
+
+##### Using the Default Constructor
+
+The first statement in the following code excerpt creates an empty `JdbcRowSet` object.
+
+```java
+public void createJdbcRowSet(String username, String password) {
+
+    jdbcRs = new JdbcRowSetImpl();
+    jdbcRs.setCommand("select * from COFFEES");
+    jdbcRs.setUrl("jdbc:myDriver:myAttribute");
+    jdbcRs.setUsername(username);
+    jdbcRs.setPassword(password);
+    jdbcRs.execute();
+    // ...
+}
+```
+
+The object `jdbcRs` contains no data until you specify a SQL statement with the method `setCommand`, specify how the `JdbcResultSet` object connects the database, and then run the method `execute`.
+
+All of the reference implementation constructors assign the default values for the properties listed in the section Default JdbcRowSet Objects.
+
+##### Using the RowSetFactory Interface
+
+With RowSet 1.1, which is part of Java SE 7 and later, you can use an instance of `RowSetFactory` to create a `JdbcRowSet` object. For example, the following code excerpt uses an instance of the `RowSetFactory` interface to create the `JdbcRowSet` object, `jdbcRs`:
+
+```java
+public void createJdbcRowSetWithRowSetFactory(
+    String username, String password)
+    throws SQLException {
+
+    RowSetFactory myRowSetFactory = null;
+    JdbcRowSet jdbcRs = null;
+    ResultSet rs = null;
+    Statement stmt = null;
+
+    try {
+        myRowSetFactory = RowSetProvider.newFactory();
+        jdbcRs = myRowSetFactory.createJdbcRowSet();
+
+        jdbcRs.setUrl("jdbc:myDriver:myAttribute");
+        jdbcRs.setUsername(username);
+        jdbcRs.setPassword(password);
+
+        jdbcRs.setCommand("select * from COFFEES");
+        jdbcRs.execute();
+
+        // ...
+    }
+}
+```
+
+The following statement creates the `RowSetProvider` object `myRowSetFactory` with the default `RowSetFactory` implementation, `com.sun.rowset.RowSetFactoryImpl`:
+
+```java
+myRowSetFactory = RowSetProvider.newFactory();
+```
+
+Alternatively, if your JDBC driver has its own `RowSetFactory` implementation, you may specify it as an argument of the `newFactory` method.
+
+The following statements create the `JdbcRowSet` object `jdbcRs` and configure its database connection properties:
+
+```java
+jdbcRs = myRowSetFactory.createJdbcRowSet();
+jdbcRs.setUrl("jdbc:myDriver:myAttribute");
+jdbcRs.setUsername(username);
+jdbcRs.setPassword(password);
+```
+
+The `RowSetFactory` interface contains methods to create the different types of `RowSet` implementations available in RowSet 1.1 and later:
+
+- `createCachedRowSet`
+- `createFilteredRowSet`
+- `createJdbcRowSet`
+- `createJoinRowSet`
+- `createWebRowSet`
+
+#### Default JdbcRowSet Objects
+
+When you create a `JdbcRowSet` object with the default constructor, the new `JdbcRowSet` object will have the following properties:
+
+- `type`: `ResultSet.TYPE_SCROLL_INSENSITIVE` (has a scrollable cursor)
+- `concurrency`: `ResultSet.CONCUR_UPDATABLE` (can be updated)
+- `escapeProcessing`: `true` (the driver will do escape processing; when escape processing is enabled, the driver will scan for any escape syntax and translate it into code that the particular database understands)
+- `maxRows`: `0` (no limit on the number of rows)
+- `maxFieldSize`: `0` (no limit on the number of bytes for a column value; applies only to columns that store BINARY, VARBINARY, LONGVARBINARY, CHAR, VARCHAR, and LONGVARCHAR values)
+- `queryTimeout`: `0` (has no time limit for how long it takes to execute a query)
+- `showDeleted`: `false` (deleted rows are not visible)
+- `transactionIsolation`: `Connection.TRANSACTION_READ_COMMITTED` (reads only data that has been committed)
+- `typeMap`: `null` (the type map associated with a `Connection` object used by this `RowSet` object is `null`)
+
+The main thing you must remember from this list is that a `JdbcRowSet` and all other `RowSet` objects are scrollable and updatable unless you set different values for those properties.
+
+#### Setting Properties
+
+The section Default JdbcRowSet Objects lists the properties that are set by default when a new `JdbcRowSet` object is created. If you use the default constructor, you must set some additional properties before you can populate your new `JdbcRowSet` object with data.
+
+In order to get its data, a `JdbcRowSet` object first needs to connect to a database. The following four properties hold information used in obtaining a connection to a database.
+
+- `username`: the name a user supplies to a database as part of gaining access
+- `password`: the user's database password
+- `url`: the JDBC URL for the database to which the user wants to connect
+- `datasourceName`: the name used to retrieve a `DataSource` object that has been registered with a JNDI naming service
+
+Which of these properties you set depends on how you are going to make a connection. The preferred way is to use a `DataSource` object, but it may not be practical for you to register a `DataSource` object with a JNDI naming service, which is generally done by a system administrator. Therefore, the code examples all use the `DriverManager` mechanism to obtain a connection, for which you use the `url` property and not the `datasourceName` property.
+
+Another property that you must set is the `command` property. This property is the query that determines what data the `JdbcRowSet` object will hold. For example, the following line of code sets the `command` property with a query that produces a `ResultSet` object containing all the data in the table `COFFEES`:
+
+```java
+jdbcRs.setCommand("select * from COFFEES");
+```
+
+After you have set the `command` property and the properties necessary for making a connection, you are ready to populate the `jdbcRs` object with data by calling the `execute` method.
+
+```java
+jdbcRs.execute();
+```
+
+The `execute` method does many things for you in the background:
+
+- It makes a connection to the database using the values you assigned to the `url`, `username`, and `password` properties.
+- It executes the query you set in the `command` property.
+- It reads the data from the resulting `ResultSet` object into the `jdbcRs` object.
+
+#### Using JdbcRowSet Objects
+
+You update, insert, and delete a row in a `JdbcRowSet` object the same way you update, insert, and delete a row in an updatable `ResultSet` object. Similarly, you navigate a JdbcRowSet object the same way you navigate a scrollable `ResultSet` object.
+
+The Coffee Break chain of coffee houses acquired another chain of coffee houses and now has a legacy database that does not support scrolling or updating of a result set. In other words, any `ResultSet` object produced by this legacy database does not have a scrollable cursor, and the data in it cannot be modified. However, by creating a `JdbcRowSet` object populated with the data from a `ResultSet` object, you can, in effect, make the `ResultSet` object scrollable and updatable.
+
+As mentioned previously, a `JdbcRowSet` object is by default scrollable and updatable. Because its contents are identical to those in a `ResultSet` object, operating on the `JdbcRowSet` object is equivalent to operating on the `ResultSet` object itself. And because a `JdbcRowSet` object has an ongoing connection to the database, changes it makes to its own data are also made to the data in the database.
+
+##### Navigating JdbcRowSet Objects
+
+A `ResultSet` object that is not scrollable can use only the `next` method to move its cursor forward, and it can move the cursor only forward from the first row to the last row. A default `JdbcRowSet` object, however, can use all of the cursor movement methods defined in the `ResultSet` interface.
+
+A `JdbcRowSet` object can call the method `next`, and it can also call any of the other `ResultSet` cursor movement methods. For example, the following lines of code move the cursor to the fourth row in the `jdbcRs` object and then back to the third row:
+
+```java
+jdbcRs.absolute(4);
+jdbcRs.previous();
+```
+
+The method `previous` is analogous to the method `next` in that it can be used in a `while` loop to traverse all of the rows in order. The difference is that you must move the cursor to a position after the last row, and `previous` moves the cursor toward the beginning.
+
+##### Updating Column Values
+
+You update data in a `JdbcRowSet` object the same way you update data in a `ResultSet` object.
+
+Assume that the Coffee Break owner wants to raise the price for a pound of Espresso coffee. If the owner knows that Espresso is in the third row of the `jdbcRs` object, the code for doing this might look like the following:
+
+```java
+jdbcRs.absolute(3);
+jdbcRs.updateFloat("PRICE", 10.99f);
+jdbcRs.updateRow();
+```
+
+The code moves the cursor to the third row and changes the value for the column `PRICE` to `10.99`, and then updates the database with the new price.
+
+Calling the method `updateRow` updates the database because `jdbcRs` has maintained its connection to the database. For disconnected `RowSet` objects, the situation is different.
+
+##### Inserting Rows
+
+If the owner of the Coffee Break chain wants to add one or more coffees to what he offers, the owner will need to add one row to the `COFFEES` table for each new coffee, as is done in the following code fragment from `JdbcRowSetSample`. Notice that because the `jdbcRs` object is always connected to the database, inserting a row into a `JdbcRowSet` object is the same as inserting a row into a `ResultSet` object: You move to the cursor to the insert row, use the appropriate updater method to set a value for each column, and call the method `insertRow`:
+
+```java
+jdbcRs.moveToInsertRow();
+jdbcRs.updateString("COF_NAME", "HouseBlend");
+jdbcRs.updateInt("SUP_ID", 49);
+jdbcRs.updateFloat("PRICE", 7.99f);
+jdbcRs.updateInt("SALES", 0);
+jdbcRs.updateInt("TOTAL", 0);
+jdbcRs.insertRow();
+
+jdbcRs.moveToInsertRow();
+jdbcRs.updateString("COF_NAME", "HouseDecaf");
+jdbcRs.updateInt("SUP_ID", 49);
+jdbcRs.updateFloat("PRICE", 8.99f);
+jdbcRs.updateInt("SALES", 0);
+jdbcRs.updateInt("TOTAL", 0);
+jdbcRs.insertRow();
+```
+
+When you call the method `insertRow`, the new row is inserted into the `jdbcRs` object and is also inserted into the database. The preceding code fragment goes through this process twice, so two new rows are inserted into the `jdbcRs` object and the database.
+
+##### Deleting Rows
+
+As is true with updating data and inserting a new row, deleting a row is just the same for a `JdbcRowSet` object as for a `ResultSet` object. The owner wants to discontinue selling French Roast decaffeinated coffee, which is the last row in the `jdbcRs` object. In the following lines of code, the first line moves the cursor to the last row, and the second line deletes the last row from the `jdbcRs` object and from the database:
+
+```java
+jdbcRs.last();
+jdbcRs.deleteRow();
+```
+
+#### Code Sample
+
+The sample `JdbcRowSetSample` does the following:
+
+- Creates a new `JdbcRowSet` object initialized with the `ResultSet` object that was produced by the execution of a query that retrieves all the rows in the `COFFEES` table
+- Moves the cursor to the third row of the `COFFEES` table and updates the `PRICE` column in that row
+- Inserts two new rows, one for `HouseBlend` and one for `HouseDecaf`
+- Moves the cursor to the last row and deletes it
+
+<h3 id="using-cachedrowsetobjects"></h3>
+
+A `CachedRowSet` object is special in that it can operate without being connected to its data source, that is, it is a *disconnected* `RowSet` object. It gets its name from the fact that it stores (caches) its data in memory so that it can operate on its own data rather than on the data stored in a database.
+
+The `CachedRowSet` interface is the superinterface for all disconnected `RowSet` objects, so everything demonstrated here also applies to `WebRowSet`, `JoinRowSet`, and `FilteredRowSet` objects.
+
+Note that although the data source for a `CachedRowSet` object (and the `RowSet` objects derived from it) is almost always a relational database, a `CachedRowSet` object is capable of getting data from any data source that stores its data in a tabular format. For example, a flat file or spreadsheet could be the source of data. This is true when the `RowSetReader` object for a disconnected `RowSet` object is implemented to read data from such a data source. The reference implementation of the `CachedRowSet` interface has a `RowSetReader` object that reads data from a relational database, so in this tutorial, the data source is always a database.
+
+#### Setting Up CachedRowSet Objects
+
+##### Creating CachedRowSet Objects
+
+You can create a new `CachedRowSet` object in the different ways:
+
+- Using the Default Constructor
+- Using an instance of `RowSetFactory`, which is created from the class `RowSetProvider`: See Using the RowSetFactory Interface in [Using JdbcRowSet Objects](#using-jdbcrowset-objects) for more information.
+
+**Note**: Alternatively, you can use the constructor from the `CachedRowSet` implementation of your JDBC driver. However, implementations of the `RowSet` interface will differ from the reference implementation. These implementations will have different names and constructors. For example, the Oracle JDBC driver's implementation of the `CachedRowSet` interface is named `oracle.jdbc.rowset.OracleCachedRowSet`.
+
+###### Using the Default Constructor
+
+One of the ways you can create a `CachedRowSet` object is by calling the default constructor defined in the reference implementation, as is done in the following line of code:
+
+```java
+CachedRowSet crs = new CachedRowSetImpl();
+```
+
+The object `crs` has the same default values for its properties that a `JdbcRowSet` object has when it is first created. In addition, it has been assigned an instance of the default `SyncProvider` implementation, `RIOptimisticProvider`.
+
+A `SyncProvider` object supplies a `RowSetReader` object (a *reader*) and a `RowSetWriter` object (a *writer*), which a disconnected `RowSet` object needs in order to read data from its data source or to write data back to its data source. What a reader and writer do is explained later in the sections What Reader Does and What Writer Does. One thing to keep in mind is that readers and writers work entirely in the background, so the explanation of how they work is for your information only. Having some background on readers and writers should help you understand what some of the methods defined in the `CachedRowSet` interface do in the background.
+
+##### Setting CachedRowSet Properties
+
+Generally, the default values for properties are fine as they are, but you may change the value of a property by calling the appropriate setter method. There are some properties without default values that you must set yourself.
+
+In order to get data, a disconnected `RowSet` object must be able to connect to a data source and have some means of selecting the data it is to hold. The following properties hold information necessary to obtain a connection to a database.
+
+- `username`: The name a user supplies to a database as part of gaining access
+- `password`: The user's database password
+- `url`: The JDBC URL for the database to which the user wants to connect
+- `datasourceName`: The name used to retrieve a DataSource object that has been registered with a JNDI naming service
+
+Which of these properties you must set depends on how you are going to make a connection. The preferred way is to use a `DataSource` object, but it may not be practical for you to register a `DataSource` object with a JNDI naming service, which is generally done by a system administrator. Therefore, the code examples all use the `DriverManager` mechanism to obtain a connection, for which you use the `url` property and not the `datasourceName` property.
+
+The following lines of code set the `username`, `password`, and `url` properties so that a connection can be obtained using the `DriverManager` class. (You will find the JDBC URL to set as the value for the url property in the documentation for your JDBC driver.)
+
+```java
+public void setConnectionProperties(
+    String username, String password) {
+    crs.setUsername(username);
+    crs.setPassword(password);
+    crs.setUrl("jdbc:mySubprotocol:mySubname");
+    // ...
+```
+
+Another property that you must set is the `command` property. In the reference implementation, data is read into a `RowSet` object from a `ResultSet` object. The query that produces that `ResultSet` object is the value for the `command` property. For example, the following line of code sets the `command` property with a query that produces a `ResultSet` object containing all the data in the table `MERCH_INVENTORY`:
+
+```java
+crs.setCommand("select * from MERCH_INVENTORY");
+```
+
+##### Setting Key Columns
+
+If you are going make any updates to the `crs` object and want those updates saved in the database, you must set one more piece of information: the key columns. Key columns are essentially the same as a primary key because they indicate one or more columns that uniquely identify a row. The difference is that a primary key is set on a table in the database, whereas key columns are set on a particular `RowSet` object. The following lines of code set the key columns for `crs` to the first column:
+
+```java
+int [] keys = {1};
+crs.setKeyColumns(keys);
+```
+
+The first column in the table `MERCH_INVENTORY` is `ITEM_ID`. It can serve as the key column because every item identifier is different and therefore uniquely identifies one row and only one row in the table `MERCH_INVENTORY`. In addition, this column is specified as a primary key in the definition of the `MERCH_INVENTORY` table. The method `setKeyColumns` takes an array to allow for the fact that it may take two or more columns to identify a row uniquely.
+
+As a point of interest, the method `setKeyColumns` does not set a value for a property. In this case, it sets the value for the field `keyCols`. Key columns are used internally, so after setting them, you do nothing more with them. You will see how and when key columns are used in the section Using SyncResolver Objects.
+
+#### Populating CachedRowSet Objects
+
+Populating a disconnected `RowSet` object involves more work than populating a connected `RowSet` object. Fortunately, the extra work is done in the background. After you have done the preliminary work to set up the `CachedRowSet` object `crs`, the following line of code populates `crs`:
+
+```java
+crs.execute();
+```
+
+The data in `crs` is the data in the `ResultSet` object produced by executing the query in the command property.
+
+What is different is that the `CachedRowSet` implementation for the `execute` method does a lot more than the `JdbcRowSet` implementation. Or more correctly, the `CachedRowSet` object's reader, to which the method execute delegates its tasks, does a lot more.
+
+Every disconnected `RowSet` object has a `SyncProvider` object assigned to it, and this `SyncProvider` object is what provides the `RowSet` object's *reader* (a `RowSetReader` object). When the `crs` object was created, it was used as the default `CachedRowSetImpl` constructor, which, in addition to setting default values for properties, assigns an instance of the `RIOptimisticProvider` implementation as the default `SyncProvider` object.
+
+#### What Reader Does
+
+When an application calls the method `execute`, a disconnected `RowSet` object's reader works behind the scenes to populate the `RowSet` object with data. A newly created `CachedRowSet` object is not connected to a data source and therefore must obtain a connection to that data source in order to get data from it. The reference implementation of the default `SyncProvider` object (`RIOptimisticProvider`) provides a reader that obtains a connection by using the values set for the user name, password, and either the JDBC URL or the data source name, whichever was set more recently. Then the reader executes the query set for the command. It reads the data in the `ResultSet` object produced by the query, populating the `CachedRowSet` object with that data. Finally, the reader closes the connection.
+
+#### Updating CachedRowSet Object
+
+In the Coffee Break scenario, the owner wants to streamline operations. The owner decides to have employees at the warehouse enter inventory directly into a PDA (personal digital assistant), thereby avoiding the error-prone process of having a second person do the data entry. A `CachedRowSet` object is ideal in this situation because it is lightweight, serializable, and can be updated without a connection to the data source.
+
+The owner will have the application development team create a GUI tool for the PDA that warehouse employees will use for entering inventory data. Headquarters will create a `CachedRowSet` object populated with the table showing the current inventory and send it using the Internet to the PDAs. When a warehouse employee enters data using the GUI tool, the tool adds each entry to an array, which the `CachedRowSet` object will use to perform the updates in the background. Upon completion of the inventory, the PDAs send their new data back to headquarters, where the data is uploaded to the main server.
+
+##### Updating Column Values
+
+Updating data in a `CachedRowSet` object is just the same as updating data in a `JdbcRowSet` object. For example, the following code fragment from `CachedRowSetSample.java` increments the value in the column `QUAN` by `1` in the row whose `ITEM_ID` column has an item identifier of `12345`:
+
+```java
+while (crs.next()) {
+    System.out.println(
+        "Found item " + crs.getInt("ITEM_ID") +
+        ": " + crs.getString("ITEM_NAME"));
+    if (crs.getInt("ITEM_ID") == 1235) {
+        int currentQuantity = crs.getInt("QUAN") + 1;
+        System.out.println("Updating quantity to " +
+          currentQuantity);
+        crs.updateInt("QUAN", currentQuantity + 1);
+        crs.updateRow();
+        // Synchronizing the row
+        // back to the DB
+        crs.acceptChanges(con);
+    }
+```
+
+##### Inserting and Deleting Rows
+
+Just as with updating a column value, the code for inserting and deleting rows in a `CachedRowSet` object is the same as for a `JdbcRowSet` object.
+
+The following excerpt from `CachedRowSetSample.java` inserts a new row into the `CachedRowSet` object `crs`:
+
+```java
+crs.moveToInsertRow();
+crs.updateInt("ITEM_ID", newItemId);
+crs.updateString("ITEM_NAME", "TableCloth");
+crs.updateInt("SUP_ID", 927);
+crs.updateInt("QUAN", 14);
+Calendar timeStamp;
+timeStamp = new GregorianCalendar();
+timeStamp.set(2006, 4, 1);
+crs.updateTimestamp(
+    "DATE_VAL",
+    new Timestamp(timeStamp.getTimeInMillis()));
+crs.insertRow();
+crs.moveToCurrentRow();
+```
+
+If headquarters has decided to stop stocking a particular item, it would probably remove the row for that coffee itself. However, in the scenario, a warehouse employee using a PDA also has the capability of removing it. The following code fragment finds the row where the value in the `ITEM_ID` column is `12345` and deletes it from the `CachedRowSet crs`:
+
+```java
+while (crs.next()) {
+    if (crs.getInt("ITEM_ID") == 12345) {
+        crs.deleteRow();
+        break;
+    }
+}
+```
+
+#### Updating Data Sources
+
+There is a major difference between making changes to a `JdbcRowSet` object and making changes to a `CachedRowSet` object. Because a `JdbcRowSet` object is connected to its data source, the methods `updateRow`, `insertRow`, and `deleteRow` can update both the `JdbcRowSet` object and the data source. In the case of a disconnected `RowSet` object, however, these methods update the data stored in the `CachedRowSet` object's memory but cannot affect the data source. A disconnected `RowSet` object must call the method `acceptChanges` in order to save its changes to the data source. In the inventory scenario, back at headquarters, an application will call the method `acceptChanges` to update the database with the new values for the column `QUAN`.
+
+```java
+crs.acceptChanges();
+```
+
+#### What Writer Does
+
+Like the method `execute`, the method `acceptChanges` does its work invisibly. Whereas the method `execute` delegates its work to the `RowSet` object's reader, the method `acceptChanges` delegates its tasks to the `RowSet` object's writer. In the background, the writer opens a connection to the database, updates the database with the changes made to the `RowSet` object, and then closes the connection.
+
+##### Using Default Implementation
+
+The difficulty is that a *conflict* can arise. A conflict is a situation in which another party has updated a value in the database that corresponds to a value that was updated in a `RowSet` object. Which value should persist in the database? What the writer does when there is a conflict depends on how it is implemented, and there are many possibilities. At one end of the spectrum, the writer does not even check for conflicts and just writes all changes to the database. This is the case with the `RIXMLProvider` implementation, which is used by a `WebRowSet` object. At the other end, the writer ensures that there are no conflicts by setting database locks that prevent others from making changes.
+
+The writer for the `crs` object is the one provided by the default `SyncProvider` implementation, `RIOptimisticProvider`. The `RIOPtimisticProvider` implementation gets its name from the fact that it uses an optimistic concurrency model. This model assumes that there will be few, if any, conflicts and therefore sets no database locks. The writer checks to see if there are any conflicts, and if there is none, it writes the changes made to the `crs` object to the database, and those changes become persistent. If there are any conflicts, the default is not to write the new `RowSet` values to the database.
+
+In the scenario, the default behavior works very well. Because no one at headquarters is likely to change the value in the `QUAN` column of `COF_INVENTORY`, there will be no conflicts. As a result, the values entered into the `crs` object at the warehouse will be written to the database and thus will be persistent, which is the desired outcome.
+
+#### Using SyncResolver Objects
+
+In other situations, however, it is possible for conflicts to exist. To accommodate these situations, the `RIOPtimisticProvider` implementation provides an option that lets you look at the values in conflict and decide which ones should be persistent. This option is the use of a `SyncResolver` object.
+
+When the writer has finished looking for conflicts and has found one or more, it creates a `SyncResolver` object containing the database values that caused the conflicts. Next, the method `acceptChanges` throws a `SyncProviderException` object, which an application may catch and use to retrieve the `SyncResolver` object. The following lines of code retrieve the `SyncResolver` object `resolver`:
+
+```java
+try {
+    crs.acceptChanges();
+} catch (SyncProviderException spe) {
+    SyncResolver resolver = spe.getSyncResolver();
+}
+```
+
+The object `resolver` is a `RowSet` object that replicates the `crs` object except that it contains only the values in the database that caused a conflict. All other column values are null.
+
+With the `resolver` object, you can iterate through its rows to locate the values that are not null and are therefore values that caused a conflict. Then you can locate the value at the same position in the `crs` object and compare them. The following code fragment retrieves `resolver` and uses the `SyncResolver` method `nextConflict` to iterate through the rows that have conflicting values. The object `resolver` gets the status of each conflicting value, and if it is `UPDATE_ROW_CONFLICT`, meaning that the `crs` was attempting an update when the conflict occurred, the `resolver` object gets the row number of that value. Then the code moves the cursor for the `crs` object to the same row. Next, the code finds the column in that row of the `resolver` object that contains a conflicting value, which will be a value that is not null. After retrieving the value in that column from both the `resolver` and `crs` objects, you can compare the two and decide which one you want to become persistent. Finally, the code sets that value in both the `crs` object and the database using the method `setResolvedValue`, as shown in the following code:
+
+```java
+try {
+    crs.acceptChanges();
+} catch (SyncProviderException spe) {
+    SyncResolver resolver = spe.getSyncResolver();
+  
+    // value in crs
+    Object crsValue;
+  
+    // value in the SyncResolver object
+    Object resolverValue; 
+  
+    // value to be persistent
+    Object resolvedValue; 
+
+    while (resolver.nextConflict()) {
+        if (resolver.getStatus() ==
+            SyncResolver.UPDATE_ROW_CONFLICT) {
+            int row = resolver.getRow();
+            crs.absolute(row);
+            int colCount =
+                crs.getMetaData().getColumnCount();
+            for (int j = 1; j <= colCount; j++) {
+                if (resolver.getConflictValue(j)
+                    != null) {
+                    crsValue = crs.getObject(j);
+                    resolverValue = 
+                        resolver.getConflictValue(j);
+
+                    // ...
+                    // compare crsValue and
+                    // resolverValue to
+                    // determine the value to be
+                    // persistent
+
+                    resolvedValue = crsValue;
+                    resolver.setResolvedValue(
+                        j, resolvedValue);
+                }
+            }
+        }
+    }
+}
+```
+
+#### Notifying Listeners
+
+Being a JavaBeans component means that a `RowSet` object can notify other components when certain things happen to it. For example, if data in a `RowSet` object changes, the `RowSet` object can notify interested parties of that change. The nice thing about this notification mechanism is that, as an application programmer, all you have to do is add or remove the components that will be notified.
+
+##### Setting Up Listeners
+
+A *listener* for a `RowSet` object is a component that implements the following methods from the `RowSetListener` interface:
+
+- `cursorMoved`: Defines what the listener will do, if anything, when the cursor in the `RowSet` object moves.
+- `rowChanged`: Defines what the listener will do, if anything, when one or more column values in a row have changed, a row has been inserted, or a row has been deleted.
+- `rowSetChanged`: Defines what the listener will do, if anything, when the `RowSet` object has been populated with new data.
+
+An example of a component that might want to be a listener is a `BarGraph` object that graphs the data in a `RowSet` object. As the data changes, the `BarGraph` object can update itself to reflect the new data.
+
+As an application programmer, the only thing you must do to take advantage of the notification mechanism is to add or remove listeners. The following line of code means that every time the cursor for the `crs` objects moves, values in `crs` are changed, or `crs` as a whole gets new data, the `BarGraph` object `bar` will be notified:
+
+```java
+crs.addRowSetListener(bar);
+```
+
+You can also stop notifications by removing a listener, as is done in the following line of code:
+
+```java
+crs.removeRowSetListener(bar);
+```
+
+Using the Coffee Break scenario, assume that headquarters checks with the database periodically to get the latest price list for the coffees it sells online. In this case, the listener is the `PriceList` object `priceList` at the Coffee Break web site, which must implement the `RowSetListener` methods `cursorMoved`, `rowChanged`, and `rowSetChanged`. The implementation of the `cursorMoved` method could be to do nothing because the position of the cursor does not affect the `priceList` object. The implementations for the `rowChanged` and `rowSetChanged` methods, on the other hand, must ascertain what changes have been made and update priceList accordingly.
+
+##### How Notification Works
+
+In the reference implementation, methods that cause any of the `RowSet` events automatically notify all registered listeners. For example, any method that moves the cursor also calls the method `cursorMoved` on each of the listeners. Similarly, the method `execute` calls the method `rowSetChanged` on all listeners, and `acceptChanges` calls `rowChanged` on all listeners.
+
+#### Sending Large Amounts of Data
+
+The sample code `CachedRowSetSample.testCachedRowSet` demonstrates how data can be sent in smaller pieces.
+
+### Using JoinRowSet Objects
+
+A `JoinRowSet` implementation lets you create a SQL `JOIN` between `RowSet` objects when they are not connected to a data source. This is important because it saves the overhead of having to create one or more connections.
+
+The `JoinRowSet` interface is a subinterface of the `CachedRowSet` interface and thereby inherits the capabilities of a `CachedRowSet` object. This means that a `JoinRowSet` object is a disconnected `RowSet` object and can operate without always being connected to a data source.
+
+#### Creating JoinRowSet Objects
+
+A `JoinRowSet` object serves as the holder of a SQL `JOIN`. The following line of code shows to create a `JoinRowSet` object:
+
+```java
+JoinRowSet jrs = new JoinRowSetImpl();
+```
+
+The variable `jrs` holds nothing until `RowSet` objects are added to it.
+
+**Note**: Alternatively, you can use the constructor from the `JoinRowSet` implementation of your JDBC driver. However, implementations of the `RowSet` interface will differ from the reference implementation. These implementations will have different names and constructors. For example, the Oracle JDBC driver's implementation of the `JoinRowSet` interface is named `oracle.jdbc.rowset.OracleJoinRowSet`.
+
+#### Adding RowSet Objects
+
+Any `RowSet` object can be added to a `JoinRowSet` object as long as it can be part of a SQL `JOIN`. A `JdbcRowSet` object, which is always connected to its data source, can be added, but typically it forms part of a `JOIN` by operating with the data source directly instead of becoming part of a `JOIN` by being added to a `JoinRowSet` object. The point of providing a `JoinRowSet` implementation is to make it possible for disconnected `RowSet` objects to become part of a `JOIN` relationship.
+
+The owner of The Coffee Break chain of coffee houses wants to get a list of the coffees he buys from Acme, Inc. In order to do this, the owner will have to get information from two tables, `COFFEES` and `SUPPLIERS`. In the database world before `RowSet` technology, programmers would send the following query to the database:
+
+```java
+String query =
+    "SELECT COFFEES.COF_NAME " +
+    "FROM COFFEES, SUPPLIERS " +
+    "WHERE SUPPLIERS.SUP_NAME = Acme.Inc. " +
+    "and " +
+    "SUPPLIERS.SUP_ID = COFFEES.SUP_ID";
+```
+
+In the world of `RowSet` technology, you can accomplish the same result without having to send a query to the data source. You can add RowSet objects containing the data in the two tables to a `JoinRowSet` object. Then, because all the pertinent data is in the `JoinRowSet` object, you can perform a query on it to get the desired data.
+
+The following code fragment from `JoinSample.testJoinRowSet` creates two `CachedRowSet` objects, `coffees` populated with the data from the table `COFFEES`, and `suppliers` populated with the data from the table `SUPPLIERS`. The `coffees` and `suppliers` objects have to make a connection to the database to execute their commands and get populated with data, but after that is done, they do not have to reconnect again in order to form a `JOIN`.
+
+```java
+coffees = new CachedRowSetImpl();
+coffees.setCommand("SELECT * FROM COFFEES");
+coffees.setUsername(settings.userName);
+coffees.setPassword(settings.password);
+coffees.setUrl(settings.urlString);
+coffees.execute();
+
+suppliers = new CachedRowSetImpl();
+suppliers.setCommand("SELECT * FROM SUPPLIERS");
+suppliers.setUsername(settings.userName);
+suppliers.setPassword(settings.password);
+suppliers.setUrl(settings.urlString);
+suppliers.execute(); 
+```
+
+#### Managing Match Columns
+
+Looking at the `SUPPLIERS` table, you can see that Acme, Inc. has an identification number of 101. The coffees in the table `COFFEES` with the supplier identification number of `101` are `Colombian` and `Colombian_Decaf`. The joining of information from both tables is possible because the two tables have the column `SUP_ID in common`. In JDBC `RowSet` technology, `SUP_ID`, the column on which the JOIN is based, is called the *match column*.
+
+Each `RowSet` object added to a `JoinRowSet` object must have a match column, the column on which the `JOIN` is based. There are two ways to set the match column for a `RowSet` object. The first way is to pass the match column to the `JoinRowSet` method `addRowSet`, as shown in the following line of code:
+
+```java
+jrs.addRowSet(coffees, 2);
+```
+
+This line of code adds the `coffees CachedRowSet` to the `jrs` object and sets the second column of `coffees` (`SUP_ID`) as the match column. The line of code could also have used the column name rather that the column number.
+
+```java
+jrs.addRowSet(coffees, "SUP_ID");
+```
+
+At this point, `jrs` has only `coffees` in it. The next `RowSet` object added to `jrs` will have to be able to form a `JOIN` with `coffees`, which is true of `suppliers` because both tables have the column `SUP_ID`. The following line of code adds `suppliers` to `jrs` and sets the column `SUP_ID` as the match column.
+
+```java
+jrs.addRowSet(suppliers, 1);
+```
+
+Now `jrs` contains a `JOIN` between `coffees` and `suppliers` from which the owner can get the names of the coffees supplied by Acme, Inc. Because the code did not set the type of `JOIN`, `jrs` holds an inner JOIN, which is the default. In other words, a row in `jrs` combines a row in `coffees` and a row in `suppliers`. It holds the columns in `coffees` plus the columns in `suppliers` for rows in which the value in the `COFFEES.SUP_ID` column matches the value in `SUPPLIERS.SUP_ID`. The following code prints out the names of coffees supplied by Acme, Inc., where the `String supplierName` is equal to `Acme, Inc`. Note that this is possible because the column `SUP_NAME`, which is from `suppliers`, and `COF_NAME`, which is from `coffees`, are now both included in the `JoinRowSet` object `jrs`.
+
+```java
+System.out.println("Coffees bought from " + supplierName + ": ");
+
+while (jrs.next()) {
+    if (jrs.getString("SUP_NAME").equals(supplierName)) {
+        String coffeeName = jrs.getString(1);
+        System.out.println("     " + coffeeName);
+    }
+}
+```
+
+This will produce output similar to the following:
+
+```
+Coffees bought from Acme, Inc.:
+     Colombian
+     Colombian_Decaf
+```
+
+The `JoinRowSet` interface provides constants for setting the type of `JOIN` that will be formed, but currently the only type that is implemented is `JoinRowSet.INNER_JOIN`.
+
+
